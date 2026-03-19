@@ -1,4 +1,6 @@
-# 網站網址：https://artale-rjpq-oojump.a25896a321.workers.dev/
+# 網站網址↓↓
+https://artale-rjpq-oojump.a25896a321.workers.dev/
+
 
 # Artale_RJPQ_oojump 輔助工具
 
