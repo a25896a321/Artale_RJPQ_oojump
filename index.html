@@ -939,31 +939,11 @@
                 <div class="srch-results" id="srch-results"></div>
             </div>
             <div class="mbtns">
-                <button class="btn gld" onclick="openRoomList()">📋 房間列表</button>
-                <button class="btn" onclick="closeM('m-join')">取消</button>
+                <button class="btn" onclick="closeM('m-join')" style="width:100%">取消</button>
             </div>
         </div>
     </div>
-    <!-- Room List Modal -->
-    <div class="modal" id="m-roomlist">
-        <div class="mbox" style="max-width:400px;width:100%;">
-            <div class="mtitle">📋 房間列表</div>
-            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-                <button class="btn sm" onclick="renderRoomList()">🔄 刷新</button>
-                <button class="btn sm" id="btn-filter-full" onclick="toggleFilterFull()">篩選滿房狀態：關</button>
-                <select id="filter-tag" class="field" style="padding:4px;font-size:12px;width:100px;background:#1a1a2e;color:#fff;" onchange="renderRoomList()">
-                    <option value="">所有標籤</option>
-                    <option value="30場">30場</option><option value="15場">15場</option><option value="零散場">零散場</option>
-                    <option value="熟練場">熟練場</option><option value="新手場">新手場</option>
-                    <option value="友善場">友善場</option><option value="私人場">私人場</option>
-                    <option value="羅密歐">羅密歐</option><option value="茱麗葉">茱麗葉</option><option value="羅茱任意">羅茱任意</option>
-                </select>
-            </div>
-            <div id="room-list-container" style="max-height:250px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;background:rgba(0,0,0,.2);padding:10px;border-radius:8px;"></div>
-            <div style="font-size:10px;color:var(--muted);margin-top:8px;">* 僅列出有在本機參與過的房間（因純前端 P2P 無後端資料庫），並內建一個示範清單供測試。</div>
-            <div class="mbtns"><button class="btn" onclick="closeM('m-roomlist')">關閉</button></div>
-        </div>
-    </div>
+
     <div class="toast" id="toast"></div>
     <div class="wrap">
         <div class="app-header">
@@ -1068,7 +1048,6 @@
         let pendingConn = null;
         let idleTimer = null;
         let hasHadMembers = false;
-        let filterFull = false;
         let inviteTargetId = ''; // store target peer ID from invite link
         const IDLE_MS = 60 * 60 * 1000;
         let mapData = Array(10).fill(null).map(() => Array(4).fill(null).map(() => ({ v: 0, owner: null, ownerColor: null, errors: [], maybe: [], certain: false })));
@@ -1177,7 +1156,6 @@
                 E.membersSec.style.display = optMembers ? 'block' : 'none';
                 document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
                 for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
-                saveLocalRoom(fullMyId, roomName, roomPw, roomTags, 1);
                 setLoad(false); log(`房間「${roomName}」已建立。`, 'ok'); refreshPList(); resetIdle();
             });
             peer.on('connection', conn => setupConn(conn));
@@ -1197,7 +1175,6 @@
                         E.membersSec.style.display = optMembers ? 'block' : 'none';
                         document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
                         for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
-                        saveLocalRoom(fullMyId, roomName, roomPw, roomTags, 1);
                         setLoad(false); log(`房間「${roomName}」已建立（自動ID）。`, 'ok'); refreshPList(); resetIdle();
                     });
                     peer.on('connection', conn => setupConn(conn));
@@ -1263,40 +1240,7 @@
             startJoinById(inviteTargetId);
         }
 
-        // ===== ROOM LIST ======
-        function saveLocalRoom(id, name, pw, tags, count) {
-           let r = JSON.parse(localStorage.getItem('arjpq_rooms')||'[]');
-           r = r.filter(x => x.id !== id);
-           r.push({id, name, pw:!!pw, tags:tags||[], count, ts: Date.now()});
-           localStorage.setItem('arjpq_rooms', JSON.stringify(r));
-        }
-        function openRoomList() {
-           openM('m-roomlist'); closeM('m-join'); renderRoomList();
-        }
-        function toggleFilterFull() { filterFull = !filterFull; document.getElementById('btn-filter-full').textContent = filterFull?'篩選滿房狀態：開':'篩選滿房狀態：關'; renderRoomList(); }
-        function renderRoomList() {
-           const c = document.getElementById('room-list-container'); c.innerHTML = '';
-           const ft = document.getElementById('filter-tag').value;
-           let r = JSON.parse(localStorage.getItem('arjpq_rooms')||'[]');
-           const now = Date.now();
-           r = r.filter(x => (now - x.ts) < 12 * 3600 * 1000); // Only keep recent 12 hours
-           localStorage.setItem('arjpq_rooms', JSON.stringify(r));
-           const list = [{id:'', name:'示範房間 (公開)', pw:false, tags:['30場','熟練場','羅茱任意'], count:2, mock:true}, ...r];
-           
-           list.forEach(v => {
-               if(filterFull && v.count >= 4) return;
-               if(ft && (!v.tags || !v.tags.includes(ft))) return;
-               const el = document.createElement('div');
-               el.style.cssText = "background:rgba(255,255,255,.05);border:1px solid #333;border-radius:6px;padding:8px;";
-               el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
-                   <div><b>${v.name}</b> <span style="font-size:10px;color:var(--muted)">👤 ${v.count}/4 ${v.pw?'🔐':''}</span></div>
-                   <button class="btn sm pri" ${v.count>=4?'disabled':''} onclick="document.getElementById('join-id').value='${v.id}';closeM('m-roomlist');openM('m-join');">選擇</button>
-               </div>
-               <div style="font-size:10px;color:#a855f7;margin-top:4px;">${v.tags ? v.tags.join(' , ') : ''}</div>
-               `;
-               c.appendChild(el);
-           });
-        }
+
 
         // ===== SEARCH ROOM =====
         async function searchRoom() {
@@ -1372,7 +1316,6 @@
                 if (isHost) {
                     refreshPList();
                     broadcast({ type: 'NICK_LIST', users: getNickList() });
-                    saveLocalRoom(fullMyId, roomName, roomPw, roomTags, (Object.keys(connections).length+1));
                     if (hasHadMembers && Object.keys(connections).length === 0) {
                         log('所有成員已離開房間，關閉房間', 'error');
                         setTimeout(() => leaveRoom(), 1000);
