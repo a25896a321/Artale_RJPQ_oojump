@@ -562,6 +562,16 @@
             pointer-events: none;
         }
 
+        .d-seq {
+            position: absolute;
+            font-size: 24px;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.05);
+            pointer-events: none;
+            z-index: 0;
+            user-select: none;
+        }
+
         /* footer */
         .footer-card {
             background: var(--card);
@@ -852,16 +862,43 @@
         <div class="mbox">
             <div class="mtitle">🏠 建立新房間</div>
             <div class="mfield"><label>房間名稱</label><input class="field" id="inp-rname" maxlength="20"
-                    placeholder="輸入房間名稱..." style="width:100%"></div>
+                    placeholder="輸入房間名...(如：羅15場 77頻 缺1法)" style="width:100%"></div>
             <div class="mfield"><label>房間密碼（選填）</label><input class="field" id="inp-rpw" type="password" maxlength="20"
                     placeholder="留空則不設密碼..." style="width:100%"></div>
             <div class="mfield">
-                <label>選項</label>
+                <label>格子順序標記</label>
+                <select id="opt-seq" class="field" style="width:100%;margin-bottom:10px;background:#1a1a2e;color:#e2e8f0;">
+                    <option value="none">不顯示</option>
+                    <option value="1234">由左至右 1234</option>
+                    <option value="4321">由左至右 4321</option>
+                </select>
+                <label>房間標籤 (可複選)</label>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">場次標籤</div>
+                <div class="opts-row" style="margin-bottom:6px;" id="tag-match">
+                    <label class="opt-label"><input type="checkbox" value="30場"> 30場</label>
+                    <label class="opt-label"><input type="checkbox" value="15場"> 15場</label>
+                    <label class="opt-label"><input type="checkbox" value="零散場"> 零散場</label>
+                </div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">推薦程度</div>
+                <div class="opts-row" style="margin-bottom:6px;" id="tag-rec">
+                    <label class="opt-label"><input type="checkbox" value="熟練場"> 熟練場</label>
+                    <label class="opt-label"><input type="checkbox" value="新手場"> 新手場</label>
+                    <label class="opt-label"><input type="checkbox" value="友善場"> 友善場</label>
+                    <label class="opt-label"><input type="checkbox" value="私人場"> 私人場</label>
+                </div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">任務NPC</div>
+                <div class="opts-row" style="margin-bottom:10px;" id="tag-npc">
+                    <label class="opt-label"><input type="checkbox" value="羅密歐"> 羅密歐</label>
+                    <label class="opt-label"><input type="checkbox" value="茱麗葉"> 茱麗葉</label>
+                    <label class="opt-label"><input type="checkbox" value="羅茱任意"> 羅茱任意</label>
+                </div>
+                <label>系統選項</label>
                 <div class="opts-row">
                     <label class="opt-label"><input type="checkbox" class="tcb" id="opt-auto"
                             checked><span>自動標記可能性</span></label>
                     <label class="opt-label"><input type="checkbox" class="tcb" id="opt-members"
                             checked><span>顯示成員名單</span></label>
+                    <label class="opt-label"><input type="checkbox" class="tcb" id="opt-chat"><span>建立聊天框</span></label>
                 </div>
             </div>
             <div class="mbtns">
@@ -880,6 +917,51 @@
                 <button class="btn" onclick="closeM('m-joinpw')">取消</button>
                 <button class="btn pri" id="btn-cfm-pw">確認加入</button>
             </div>
+        </div>
+    </div>
+    <!-- Join Modal -->
+    <div class="modal" id="m-join">
+        <div class="mbox">
+            <div class="mtitle">🌍 加入房間</div>
+            <div class="mfield">
+                <label>透過房號加入</label>
+                <div class="join-row">
+                    <input class="field" type="text" id="join-id" placeholder="貼上房號 (ID)..." style="font-family:monospace;font-size:12px">
+                    <button class="btn pri" onclick="startJoin()">加入</button>
+                </div>
+            </div>
+            <div class="mfield" style="margin-top:10px">
+                <label>透過房間名稱搜尋</label>
+                <div class="join-row">
+                    <input class="field" type="text" id="srch-name" placeholder="輸入房間名稱搜尋...">
+                    <button class="btn pri" onclick="searchRoom()">搜尋</button>
+                </div>
+                <div class="srch-results" id="srch-results"></div>
+            </div>
+            <div class="mbtns">
+                <button class="btn gld" onclick="openRoomList()">📋 房間列表</button>
+                <button class="btn" onclick="closeM('m-join')">取消</button>
+            </div>
+        </div>
+    </div>
+    <!-- Room List Modal -->
+    <div class="modal" id="m-roomlist">
+        <div class="mbox" style="max-width:400px;width:100%;">
+            <div class="mtitle">📋 房間列表</div>
+            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+                <button class="btn sm" onclick="renderRoomList()">🔄 刷新</button>
+                <button class="btn sm" id="btn-filter-full" onclick="toggleFilterFull()">篩選滿房狀態：關</button>
+                <select id="filter-tag" class="field" style="padding:4px;font-size:12px;width:100px;background:#1a1a2e;color:#fff;" onchange="renderRoomList()">
+                    <option value="">所有標籤</option>
+                    <option value="30場">30場</option><option value="15場">15場</option><option value="零散場">零散場</option>
+                    <option value="熟練場">熟練場</option><option value="新手場">新手場</option>
+                    <option value="友善場">友善場</option><option value="私人場">私人場</option>
+                    <option value="羅密歐">羅密歐</option><option value="茱麗葉">茱麗葉</option><option value="羅茱任意">羅茱任意</option>
+                </select>
+            </div>
+            <div id="room-list-container" style="max-height:250px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;background:rgba(0,0,0,.2);padding:10px;border-radius:8px;"></div>
+            <div style="font-size:10px;color:var(--muted);margin-top:8px;">* 僅列出有在本機參與過的房間（因純前端 P2P 無後端資料庫），並內建一個示範清單供測試。</div>
+            <div class="mbtns"><button class="btn" onclick="closeM('m-roomlist')">關閉</button></div>
         </div>
     </div>
     <div class="toast" id="toast"></div>
@@ -912,26 +994,7 @@
             <div id="conn-panel">
                 <div style="display:none;gap:8px;" id="init-actions">
                     <button class="btn pri" id="btn-host" style="flex:1" onclick="openCreate()">🏠 建立房間</button>
-                </div>
-                <div style="margin-top:8px;" id="join-section" style="display:none">
-                    <div class="tab-bar">
-                        <button class="tab-btn active" id="tab-id" onclick="switchTab('id')">房號加入</button>
-                        <button class="tab-btn" id="tab-name" onclick="switchTab('name')">房名搜尋</button>
-                    </div>
-                    <div id="tc-id" class="tab-content show">
-                        <div class="join-row">
-                            <input class="field" type="text" id="join-id" placeholder="貼上房號 (ID)..."
-                                style="font-family:monospace;font-size:12px">
-                            <button class="btn" id="btn-join" onclick="startJoin()">加入</button>
-                        </div>
-                    </div>
-                    <div id="tc-name" class="tab-content">
-                        <div class="join-row">
-                            <input class="field" type="text" id="srch-name" placeholder="輸入房間名稱搜尋...">
-                            <button class="btn" onclick="searchRoom()">🔍 搜尋</button>
-                        </div>
-                        <div class="srch-results" id="srch-results"></div>
-                    </div>
+                    <button class="btn gld" id="btn-join-modal" style="flex:1" onclick="openM('m-join')">🌍 加入房間</button>
                 </div>
             </div>
             <div id="room-status" style="display:none">
@@ -942,10 +1005,12 @@
                             style="display:none;margin-left:6px;font-size:10px;background:rgba(245,158,11,.2);color:var(--goldc);padding:1px 6px;border-radius:10px">🔐
                             已設密碼</span>
                     </div>
-                    <div class="room-id" id="rid-disp">-</div>
+                    <div style="display:flex;align-items:center;gap:6px;margin:6px 0;">
+                        <div class="room-id" id="rid-disp" style="flex:1;margin:0;">-</div>
+                        <button class="btn sm gld" style="padding:5px 8px;" onclick="copyId()"><span style="font-size:14px;">📋</span></button>
+                    </div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap">
                         <button class="btn sm" onclick="editPw()">🔑 編輯密碼</button>
-                        <button class="btn sm" onclick="location.reload()">🔄 重新整理</button>
                         <button class="btn sm dng" onclick="rebuildRoom()">🔨 重建房間</button>
                     </div>
                 </div>
@@ -969,6 +1034,15 @@
             <div class="map-title">⬆ 樓梯地圖（L10 → L1）</div>
             <div id="map-grid"></div>
         </div>
+        <!-- 聊天室 -->
+        <div class="card" id="chat-sec" style="display:none;margin-bottom:1px;">
+            <div class="ctitle">💬 聊天室</div>
+            <div id="chat-msgs" style="height:120px;overflow-y:auto;background:rgba(0,0,0,0.4);border:1px solid #333;border-radius:var(--rsm);padding:8px;font-size:12px;margin-bottom:8px;display:flex;flex-direction:column;gap:4px;"></div>
+            <div style="display:flex;gap:6px;">
+                <input class="field" type="text" id="chat-inp" placeholder="輸入訊息，Enter發送..." onkeypress="if(event.key==='Enter')sendChat()">
+                <button class="btn pri" onclick="sendChat()">發送</button>
+            </div>
+        </div>
         <!-- 底部 -->
         <div class="footer-card">
             <div class="footer-btns">
@@ -989,10 +1063,12 @@
     <script>
         // ===== STATE =====
         let peer = null, myNick = "", myColor = "#7c3aed", isHost = false, fullMyId = "";
-        let roomName = "", roomPw = "", optAuto = true, optMembers = true;
+        let roomName = "", roomPw = "", optAuto = true, optMembers = true, optSeq = 'none', optChat = false, roomTags = [];
         let connections = {};
         let pendingConn = null;
         let idleTimer = null;
+        let hasHadMembers = false;
+        let filterFull = false;
         let inviteTargetId = ''; // store target peer ID from invite link
         const IDLE_MS = 60 * 60 * 1000;
         let mapData = Array(10).fill(null).map(() => Array(4).fill(null).map(() => ({ v: 0, owner: null, ownerColor: null, errors: [], maybe: [], certain: false })));
@@ -1007,7 +1083,7 @@
             btnReset: document.getElementById('btn-reset'), nickInp: document.getElementById('nick-inp'),
             btnSN: document.getElementById('btn-snick'), btnEN: document.getElementById('btn-enick'),
             btnLeave: document.getElementById('btn-leave'), initActs: document.getElementById('init-actions'),
-            joinSec: document.getElementById('join-section'), connPanel: document.getElementById('conn-panel'),
+            connPanel: document.getElementById('conn-panel'),
             roomStatus: document.getElementById('room-status'), ridDisp: document.getElementById('rid-disp'),
             rnameDisp: document.getElementById('rname-disp'), rpwBadge: document.getElementById('rpw-badge'),
             membersSec: document.getElementById('members-sec'), srchRes: document.getElementById('srch-results')
@@ -1025,12 +1101,6 @@
         function toast(msg, ms = 2500) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), ms); }
         function openM(id) { document.getElementById(id).classList.add('show'); }
         function closeM(id) { document.getElementById(id).classList.remove('show'); }
-        function switchTab(t) {
-            document.getElementById('tc-id').classList.toggle('show', t === 'id');
-            document.getElementById('tc-name').classList.toggle('show', t === 'name');
-            document.getElementById('tab-id').classList.toggle('active', t === 'id');
-            document.getElementById('tab-name').classList.toggle('active', t === 'name');
-        }
 
         // ===== ROOM NAME HASH =====
         async function roomHash(name) {
@@ -1050,7 +1120,7 @@
             if (!/^[a-zA-Z0-9\u4e00-\u9fa5]{1,10}$/.test(v)) return alert('暱稱請使用 1-10 位英數或中文字。');
             myNick = v; E.nickInp.value = myNick; E.nickInp.disabled = true; E.nickInp.style.opacity = '.7';
             E.btnSN.style.display = 'none'; E.btnEN.style.display = 'inline-flex';
-            E.initActs.style.display = 'flex'; E.joinSec.style.display = 'block';
+            E.initActs.style.display = 'flex';
             log(`暱稱設定：${myNick}`, 'ok'); refreshPList();
         }
         function editNick() {
@@ -1083,6 +1153,12 @@
             roomPw = document.getElementById('inp-rpw').value.trim();
             optAuto = document.getElementById('opt-auto').checked;
             optMembers = document.getElementById('opt-members').checked;
+            optChat = document.getElementById('opt-chat').checked;
+            optSeq = document.getElementById('opt-seq').value;
+            roomTags = [];
+            ['tag-match', 'tag-rec', 'tag-npc'].forEach(id => {
+               document.getElementById(id).querySelectorAll('input:checked').forEach(e => roomTags.push(e.value));
+            });
             closeM('m-create');
             await startHost();
         }
@@ -1099,6 +1175,9 @@
                 E.btnCopy.style.display = 'inline-flex'; E.btnLeave.style.display = 'inline-flex';
                 E.btnReset.style.display = 'inline-flex';
                 E.membersSec.style.display = optMembers ? 'block' : 'none';
+                document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
+                for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
+                saveLocalRoom(fullMyId, roomName, roomPw, roomTags, 1);
                 setLoad(false); log(`房間「${roomName}」已建立。`, 'ok'); refreshPList(); resetIdle();
             });
             peer.on('connection', conn => setupConn(conn));
@@ -1116,6 +1195,9 @@
                         E.btnCopy.style.display = 'inline-flex'; E.btnLeave.style.display = 'inline-flex';
                         E.btnReset.style.display = 'inline-flex';
                         E.membersSec.style.display = optMembers ? 'block' : 'none';
+                        document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
+                        for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
+                        saveLocalRoom(fullMyId, roomName, roomPw, roomTags, 1);
                         setLoad(false); log(`房間「${roomName}」已建立（自動ID）。`, 'ok'); refreshPList(); resetIdle();
                     });
                     peer.on('connection', conn => setupConn(conn));
@@ -1127,7 +1209,7 @@
             if (peer) { peer.destroy(); peer = null; }
             isHost = false; fullMyId = ''; roomName = ''; roomPw = ''; connections = {};
             clearLocal();
-            E.initActs.style.display = 'flex'; E.joinSec.style.display = 'block';
+            E.initActs.style.display = 'flex';
             E.connPanel.style.display = 'block'; E.roomStatus.style.display = 'none';
             E.btnLeave.style.display = 'none'; E.btnCopy.style.display = 'none';
             E.btnHost.disabled = false; E.btnJoin.disabled = false;
@@ -1149,9 +1231,20 @@
             broadcast({ type: 'UPDATE_ROOM', roomName, hasPw: !!roomPw });
             toast(roomPw ? '🔐 密碼已更新' : '🔓 密碼已移除');
         }
+        function copyId() {
+            navigator.clipboard.writeText(E.ridDisp.textContent).then(() => toast('✅ 房號已複製！'));
+        }
         function copyInvite() {
             const url = window.location.origin + window.location.pathname + '#' + fullMyId;
             navigator.clipboard.writeText(url).then(() => toast('✅ 邀請連結已複製！'));
+        }
+        function sendChat() {
+            const inp = document.getElementById('chat-inp'); const v = inp.value.trim();
+            if(!v) return;
+            const msg = { type:'CHAT', nick:myNick, color:myColor, msg:v };
+            if (isHost) { broadcast(msg); const el = document.createElement('div'); el.innerHTML = `<b><span style="color:${myColor}">${myNick}</span></b>: ${v}`; const mb = document.getElementById('chat-msgs'); mb.appendChild(el); mb.scrollTop = mb.scrollHeight; }
+            else { const hc = Object.values(connections).find(c=>c.conn&&c.conn.open); if(hc) hc.conn.send({type:'CHAT_FWD', msg}); }
+            inp.value = '';
         }
         // ===== JOIN VIA INVITE LINK =====
         function joinViaInvite() {
@@ -1165,9 +1258,44 @@
             document.getElementById('swatch').style.background = myColor;
             document.getElementById('col-inp').value = myColor;
             E.btnSN.style.display = 'none'; E.btnEN.style.display = 'inline-flex';
-            E.initActs.style.display = 'flex'; E.joinSec.style.display = 'block';
+            E.initActs.style.display = 'flex';
             closeM('m-invite');
             startJoinById(inviteTargetId);
+        }
+
+        // ===== ROOM LIST ======
+        function saveLocalRoom(id, name, pw, tags, count) {
+           let r = JSON.parse(localStorage.getItem('arjpq_rooms')||'[]');
+           r = r.filter(x => x.id !== id);
+           r.push({id, name, pw:!!pw, tags:tags||[], count, ts: Date.now()});
+           localStorage.setItem('arjpq_rooms', JSON.stringify(r));
+        }
+        function openRoomList() {
+           openM('m-roomlist'); closeM('m-join'); renderRoomList();
+        }
+        function toggleFilterFull() { filterFull = !filterFull; document.getElementById('btn-filter-full').textContent = filterFull?'篩選滿房狀態：開':'篩選滿房狀態：關'; renderRoomList(); }
+        function renderRoomList() {
+           const c = document.getElementById('room-list-container'); c.innerHTML = '';
+           const ft = document.getElementById('filter-tag').value;
+           let r = JSON.parse(localStorage.getItem('arjpq_rooms')||'[]');
+           const now = Date.now();
+           r = r.filter(x => (now - x.ts) < 12 * 3600 * 1000); // Only keep recent 12 hours
+           localStorage.setItem('arjpq_rooms', JSON.stringify(r));
+           const list = [{id:'', name:'示範房間 (公開)', pw:false, tags:['30場','熟練場','羅茱任意'], count:2, mock:true}, ...r];
+           
+           list.forEach(v => {
+               if(filterFull && v.count >= 4) return;
+               if(ft && (!v.tags || !v.tags.includes(ft))) return;
+               const el = document.createElement('div');
+               el.style.cssText = "background:rgba(255,255,255,.05);border:1px solid #333;border-radius:6px;padding:8px;";
+               el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
+                   <div><b>${v.name}</b> <span style="font-size:10px;color:var(--muted)">👤 ${v.count}/4 ${v.pw?'🔐':''}</span></div>
+                   <button class="btn sm pri" ${v.count>=4?'disabled':''} onclick="document.getElementById('join-id').value='${v.id}';closeM('m-roomlist');openM('m-join');">選擇</button>
+               </div>
+               <div style="font-size:10px;color:#a855f7;margin-top:4px;">${v.tags ? v.tags.join(' , ') : ''}</div>
+               `;
+               c.appendChild(el);
+           });
         }
 
         // ===== SEARCH ROOM =====
@@ -1194,7 +1322,6 @@
                         joinBtn.onclick = () => {
                             probeConn.close();
                             E.joinId.value = tid;
-                            switchTab('id');
                             startJoinById(tid, name);
                         };
                         item.appendChild(joinBtn); E.srchRes.appendChild(item);
@@ -1245,6 +1372,11 @@
                 if (isHost) {
                     refreshPList();
                     broadcast({ type: 'NICK_LIST', users: getNickList() });
+                    saveLocalRoom(fullMyId, roomName, roomPw, roomTags, (Object.keys(connections).length+1));
+                    if (hasHadMembers && Object.keys(connections).length === 0) {
+                        log('所有成員已離開房間，關閉房間', 'error');
+                        setTimeout(() => leaveRoom(), 1000);
+                    }
                 } else {
                     // Guest: if all connections gone (host left), show lost screen
                     const remaining = Object.values(connections).filter(c => c.conn && c.conn.open);
@@ -1273,6 +1405,10 @@
                 if (!isHost) return;
                 conn.send({ type: 'PROBE_REPLY', roomName, hasPw: !!roomPw });
                 setTimeout(() => { try { conn.close(); } catch (e) { } }, 1000);
+            } else if (data.type === 'CHAT_FWD' && isHost) {
+                broadcast(data.msg);
+                const el = document.createElement('div'); el.innerHTML = `<b><span style="color:${data.msg.color}">${data.msg.nick}</span></b>: ${data.msg.msg}`;
+                const mb = document.getElementById('chat-msgs'); mb.appendChild(el); mb.scrollTop = mb.scrollHeight;
             } else if (data.type === 'JOIN') {
                 if (!isHost) return;
                 if (Object.values(connections).length >= 3) { conn.send({ type: 'REJECT', reason: '房間已滿（最多4人）。' }); setTimeout(() => conn.close(), 500); return; }
@@ -1295,16 +1431,23 @@
                 connections[conn.peer] = { conn, nick: data.hostNick || '房主', color: data.hostColor || '#f59e0b' };
                 mapData = JSON.parse(JSON.stringify(data.state));
                 roomName = data.roomName || ''; optAuto = data.optAuto !== false; optMembers = data.optMembers !== false;
+                optSeq = data.optSeq || 'none'; optChat = data.optChat || false;
                 for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
                 if (optAuto) for (let f = 0; f < 10; f++) recalcMaybe(f);
                 log(`進入房間「${roomName}」成功！`, 'ok');
+                closeM('m-join');
                 E.connPanel.style.display = 'none'; E.roomStatus.style.display = 'block';
                 E.ridDisp.textContent = conn.peer; E.rnameDisp.textContent = roomName;
                 E.rpwBadge.style.display = data.hasPw ? 'inline' : 'none';
                 E.btnLeave.style.display = 'inline-flex';
                 E.membersSec.style.display = optMembers ? 'block' : 'none';
+                document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
+                document.getElementById('chat-msgs').innerHTML = '';
                 E.joinId.value = ''; history.replaceState(null, document.title, window.location.pathname);
                 updatePListFromWelcome(data.users); resetIdle();
+            } else if (data.type === 'CHAT') {
+                const el = document.createElement('div'); el.innerHTML = `<b><span style="color:${data.color}">${data.nick}</span></b>: ${data.msg}`;
+                const mb = document.getElementById('chat-msgs'); mb.appendChild(el); mb.scrollTop = mb.scrollHeight;
             } else if (data.type === 'NICK_LIST') {
                 updatePListFromWelcome(data.users);
             } else if (data.type === 'REJECT') {
@@ -1327,7 +1470,7 @@
                     updateDoor(data.f, d);
                 }
             } else if (data.type === 'RESET') {
-                clearLocal(); if (isHost) broadcast(data, conn);
+                clearLocal(true); if (isHost) broadcast(data, conn);
             } else if (data.type === 'KICK') {
                 alert('您已被房主踢出房間。'); leaveRoom();
             } else if (data.type === 'ROOM_CLOSED') {
@@ -1353,14 +1496,16 @@
         function acceptJoin(conn, data) {
             connections[conn.peer] = { conn, nick: data.nick, color: data.color || '#94a3b8' };
             log(`歡迎成員: ${data.nick}`, 'ok');
+            hasHadMembers = true;
             // Recalc maybe before sending state, so new member gets up-to-date state
             if (optAuto) for (let f = 0; f < 10; f++) recalcMaybe(f);
             const list = getNickList(); broadcast({ type: 'NICK_LIST', users: list });
             conn.send({
                 type: 'WELCOME', state: JSON.parse(JSON.stringify(mapData)), users: list,
-                roomName, hasPw: !!roomPw, optAuto, optMembers, hostNick: myNick, hostColor: myColor
+                roomName, hasPw: !!roomPw, optAuto, optMembers, optChat, optSeq, hostNick: myNick, hostColor: myColor
             });
             refreshPList();
+            saveLocalRoom(fullMyId, roomName, roomPw, roomTags, (Object.keys(connections).length+1));
         }
         // ===== HOST TRANSFER (when host leaves, promote first peer) =====
         function transferHost() {
@@ -1486,9 +1631,19 @@
         function onDoorClick(f, d) {
             if (!myNick) return alert('請先設定暱稱。');
             const c = mapData[f][d];
-            if (c.v === 1 && c.owner === myNick) { const m = { type: 'SYNC', f, d, action: 'unpass', owner: myNick, color: myColor }; applySync(m); syncMsg(m); }
+            let fp = ['x','x','x','x']; fp[d] = 'o';
+            let sq = ''; if (optSeq==='1234') sq = '｜'+(d+1); else if (optSeq==='4321') sq = '｜'+(4-d);
+            let s_tag = fp.join('') + sq;
+            
+            if (c.v === 1 && c.owner === myNick) {
+                const m = { type: 'SYNC', f, d, action: 'unpass', owner: myNick, color: myColor }; applySync(m); syncMsg(m);
+                log(`取消標記正確活路：L${10 - f} - ${s_tag}`, 'warn');
+            }
             else if (c.v === 1 && isHost) { const m = { type: 'SYNC', f, d, action: 'unpass', owner: c.owner, color: c.ownerColor }; applySync(m); syncMsg(m); }
-            else if (c.v === 0 && !c.errors.includes(myNick)) { const m = { type: 'SYNC', f, d, action: 'pass', owner: myNick, color: myColor }; applySync(m); syncMsg(m); }
+            else if (c.v === 0 && !c.errors.includes(myNick)) {
+                const m = { type: 'SYNC', f, d, action: 'pass', owner: myNick, color: myColor }; applySync(m); syncMsg(m);
+                log(`標記正確活路：L${10 - f} - ${s_tag}`, 'ok');
+            }
             else if (c.owner && c.owner !== myNick) log(`該格已被 ${c.owner} 標記。`, 'warn');
         }
         function onDoorRight(f, d) {
@@ -1509,12 +1664,19 @@
             const icon = el.querySelector('.d-icon');
             const owner = el.querySelector('.d-owner');
             const errEl = el.querySelector('.d-err');
+            const seqEl = el.querySelector('.d-seq');
             // Reset all states
             el.className = 'door';
             el.style.background = '';
             icon.textContent = ''; icon.style.color = '';
             owner.textContent = '';
             if (errEl) errEl.textContent = '';
+            if (seqEl) seqEl.textContent = '';
+
+            if (c.v === 0 && optSeq !== 'none') {
+                if (optSeq === '1234') seqEl.textContent = (d + 1).toString();
+                else if (optSeq === '4321') seqEl.textContent = (4 - d).toString();
+            }
             if (c.v === 1) {
                 el.classList.add('state-pass');
                 el.style.background = `linear-gradient(135deg,${c.ownerColor || '#22c55e'},${darken(c.ownerColor || '#22c55e')})`;
@@ -1549,7 +1711,7 @@
                 const grid = document.createElement('div'); grid.className = 'dgrid';
                 for (let d = 0; d < 4; d++) {
                     const door = document.createElement('div'); door.className = 'door'; door.id = `d-${f}-${d}`;
-                    door.innerHTML = '<div class="d-icon"></div><div class="d-owner"></div><div class="d-err" style="position:absolute;top:2px;right:3px;"></div>';
+                    door.innerHTML = '<div class="d-seq"></div><div class="d-icon" style="z-index:1;"></div><div class="d-owner" style="z-index:1;"></div><div class="d-err" style="position:absolute;top:2px;right:3px;z-index:1;"></div>';
                     let lt = 0;
                     door.addEventListener('touchstart', e => { const n = Date.now(); if (n - lt < 350) { e.preventDefault(); onDoorRight(f, d); } lt = n; }, { passive: false });
                     door.onclick = () => onDoorClick(f, d);
@@ -1572,7 +1734,7 @@
             tags.forEach(t => {
                 const s = document.createElement('span'); s.className = 'mtag';
                 s.style.color = t.color || '#94a3b8'; s.style.borderColor = (t.color || '#94a3b8') + '66'; s.style.background = (t.color || '#94a3b8') + '22';
-                s.textContent = (t.isHost ? '👑 ' : '👤 ') + t.nick;
+                s.textContent = (t.isHost ? '👑 ' : '🙎🏽‍♂️ ') + t.nick;
                 if (isHost && !t.isHost) { const kb = document.createElement('button'); kb.className = 'kick-btn'; kb.textContent = '✕'; kb.title = '踢出'; kb.onclick = () => kickPlayer(t.nick); s.appendChild(kb); }
                 E.plist.appendChild(s);
             });
@@ -1602,16 +1764,40 @@
         }
 
         // ===== RESET/CLEAR =====
-        function resetAll() { if (!isHost) return; if (!confirm('確定清空所有標記？')) return; clearLocal(); broadcast({ type: 'RESET' }); }
-        function clearLocal() {
+        function resetAll() { if (!isHost) return; if (!confirm('確定清空所有標記？')) return; clearLocal(true); broadcast({ type: 'RESET' }); }
+
+        function logSummary() {
+            const players = getPlayers().map(p => p.nick);
+            log('=== 執行清空前紀錄 ===', 'warn');
+            for (const p of players) {
+                let routeText = "";
+                let seq1234 = "";
+                let seq4321 = "";
+                for (let f = 9; f >= 0; f--) {
+                    let passIdx = -1;
+                    for (let d = 0; d < 4; d++) {
+                        if (mapData[f][d].v === 1 && mapData[f][d].owner === p) { passIdx = d; break; }
+                    }
+                    if (passIdx !== -1) {
+                        let fp = ['x', 'x', 'x', 'x']; fp[passIdx] = 'o';
+                        routeText += (f < 9 ? "/" : "") + fp.join("");
+                        seq1234 += (passIdx + 1);
+                        seq4321 += (4 - passIdx);
+                    } else {
+                        routeText += (f < 9 ? "/" : "") + "----";
+                        seq1234 += "-";
+                        seq4321 += "-";
+                    }
+                }
+                log(`${p}：${routeText}（1234：${seq1234}）（4321：${seq4321}）`, 'info');
+            }
+        }
+
+        function clearLocal(shouldLog = false) {
+            if (shouldLog) logSummary();
             for (let f = 0; f < 10; f++)for (let d = 0; d < 4; d++) {
                 mapData[f][d] = { v: 0, owner: null, ownerColor: null, errors: [], maybe: [], certain: false };
-                const el = document.getElementById(`d-${f}-${d}`);
-                if (el) {
-                    el.className = 'door'; el.style.background = '';
-                    const i = el.querySelector('.d-icon'); const o = el.querySelector('.d-owner'); const e = el.querySelector('.d-err');
-                    if (i) i.textContent = ''; if (o) o.textContent = ''; if (e) e.textContent = '';
-                }
+                updateDoor(f, d);
             }
         }
 
