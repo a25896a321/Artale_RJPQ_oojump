@@ -830,8 +830,6 @@
             <div class="mfield"><label>顏色</label><input type="color" id="inv-color" value="#7c3aed"
                     style="width:100%;height:36px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer">
             </div>
-            <div class="mfield" id="inv-pw-wrap" style="display:none"><label>房間密碼</label><input class="field"
-                    id="inv-pw" type="password" placeholder="輸入密碼..." style="width:100%"></div>
             <div class="mbtns">
                 <button class="btn"
                     onclick="closeM('m-invite');history.replaceState(null,document.title,window.location.pathname)">取消</button>
@@ -1624,20 +1622,6 @@
             // Direct invite link: show modal to get nick/color, then auto-join
             inviteTargetId = ih;
             history.replaceState(null, document.title, window.location.pathname);
-            // Check if needs password by probing first
-            const tmpPeer = new Peer({ debug: 0 });
-            tmpPeer.on('open', () => {
-                const probe = tmpPeer.connect(ih, { reliable: true });
-                probe.on('open', () => probe.send({ type: 'PROBE' }));
-                probe.on('data', d => {
-                    if (d.type === 'PROBE_REPLY') {
-                        document.getElementById('inv-pw-wrap').style.display = d.hasPw ? 'block' : 'none';
-                        try { probe.close(); } catch (e) { }
-                        tmpPeer.destroy();
-                    }
-                });
-                setTimeout(() => { try { probe.close(); tmpPeer.destroy(); } catch (e) { } }, 5000);
-            });
             openM('m-invite');
             log(`偵測到邀請房號，請填寫資料後加入。`, 'warn');
         }
