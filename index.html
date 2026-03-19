@@ -1171,7 +1171,7 @@
             });
         }
         function leaveRoom(silent = false) {
-            if (peer) { peer.destroy(); peer = null; }
+            if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
             isHost = false; fullMyId = ''; roomName = ''; roomPw = ''; connections = {};
             clearLocal();
             E.initActs.style.display = 'flex';
@@ -1278,18 +1278,28 @@
             peer.on('error', err => { setLoad(false); log(`連線錯誤: ${err.type}`, 'error'); if (err.type === 'peer-unavailable') alert('找不到房號。'); });
         }
         function startJoin() {
-            const tid = E.joinId.value.trim(); if (!tid) return alert('請貼上房號');
+            let tid = E.joinId.value.trim();
+            if (tid.includes('#')) tid = tid.split('#').pop(); // Handle full URL pastes or # pasted
+            if (!tid) return alert('請貼上房號');
             if (!myNick) return alert('請先設定暱稱。');
             startJoinById(tid);
         }
         function startJoinById(tid, nameHint = '') {
-            if (peer && !isHost) { peer.destroy(); peer = null; }
+            if (peer && !isHost) {
+                try { peer.destroy(); } catch(e){}
+                peer = null;
+                setTimeout(() => doJoin(tid, nameHint), 600);
+            } else {
+                doJoin(tid, nameHint);
+            }
+        }
+        function doJoin(tid, nameHint) {
             initPeer(() => {
                 setLoad(true, '正在接入...');
                 const conn = peer.connect(tid, { reliable: true });
                 setupConn(conn);
                 conn.on('open', () => { log('已連接房主，申請加入...', 'info'); conn.send({ type: 'JOIN', nick: myNick, color: myColor }); });
-                setTimeout(() => { if (E.load.style.display === 'flex' && !Object.values(connections).length) { setLoad(false); log('連線申請超時', 'error'); } }, 12000);
+                setTimeout(() => { if (E.load.style.display === 'flex' && !Object.values(connections).length) { setLoad(false); log('連線申請超時，請確認房號是否正確或是重試。', 'error'); } }, 6000);
             });
         }
         function setupConn(conn) {
@@ -1374,7 +1384,8 @@
                 E.membersSec.style.display = optMembers ? 'block' : 'none';
                 document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
                 document.getElementById('chat-msgs').innerHTML = '';
-                E.joinId.value = ''; history.replaceState(null, document.title, window.location.pathname);
+                E.joinId.value = '';
+                window.location.hash = conn.peer; // correctly jump to target path ID as user expected
                 updatePListFromWelcome(data.users); resetIdle();
             } else if (data.type === 'CHAT') {
                 const el = document.createElement('div'); el.innerHTML = `<b><span style="color:${data.color}">${data.nick}</span></b>: ${data.msg}`;
