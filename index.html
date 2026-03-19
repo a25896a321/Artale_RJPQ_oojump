@@ -938,10 +938,13 @@
         <div class="card">
             <div class="ctitle">玩家設定</div>
             <div class="nick-row">
-                <div class="swatch-wrap">
-                    <div class="swatch" id="swatch" style="background:#7c3aed"
-                        onclick="document.getElementById('col-inp').click()"></div>
-                    <input type="color" id="col-inp" value="#7c3aed" oninput="onColor(this.value)">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:12px;color:var(--text)">代表色</span>
+                    <div class="swatch-wrap">
+                        <div class="swatch" id="swatch" style="background:#7c3aed"
+                            onclick="document.getElementById('col-inp').click()"></div>
+                        <input type="color" id="col-inp" value="#7c3aed" oninput="onColor(this.value)">
+                    </div>
                 </div>
                 <input class="field" type="text" id="nick-inp" maxlength="10" placeholder="輸入暱稱 (中英數)...">
             </div>
