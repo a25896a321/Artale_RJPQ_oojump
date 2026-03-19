@@ -821,10 +821,31 @@
         <div class="spinner"></div>
         <div class="lmsg" id="lmsg">系統連線中...</div>
     </div>
+    <!-- Join via invite link modal -->
+    <div class="modal" id="m-invite">
+        <div class="mbox">
+            <div class="mtitle">🔗 加入房間</div>
+            <div class="mfield"><label>請輸入您的暱稱</label><input class="field" id="inv-nick" maxlength="10"
+                    placeholder="輸入暱稱..." style="width:100%"></div>
+            <div class="mfield"><label>顏色</label><input type="color" id="inv-color" value="#7c3aed"
+                    style="width:100%;height:36px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer">
+            </div>
+            <div class="mfield" id="inv-pw-wrap" style="display:none"><label>房間密碼</label><input class="field"
+                    id="inv-pw" type="password" placeholder="輸入密碼..." style="width:100%"></div>
+            <div class="mbtns">
+                <button class="btn"
+                    onclick="closeM('m-invite');history.replaceState(null,document.title,window.location.pathname)">取消</button>
+                <button class="btn pri" onclick="joinViaInvite()">✅ 加入</button>
+            </div>
+        </div>
+    </div>
     <div id="idle">
         <div class="idle-box">
             <h2>⏱️ 閒置過久</h2>
-            <p>房間已閒置超過 1 小時，連線已失效。<br>請重新創建房間。</p>
+            <p>請重新建立房間 or 加入房間：<br>
+                你可能已閒置超過1小時、<br>
+                請檢查您的網路連線、<br>
+                請檢查網路防火牆！</p>
             <button class="btn pri" onclick="location.reload()">🔄 重新啟動</button>
         </div>
     </div>
@@ -974,6 +995,7 @@
         let connections = {};
         let pendingConn = null;
         let idleTimer = null;
+        let inviteTargetId = ''; // store target peer ID from invite link
         const IDLE_MS = 60 * 60 * 1000;
         let mapData = Array(10).fill(null).map(() => Array(4).fill(null).map(() => ({ v: 0, owner: null, ownerColor: null, errors: [], maybe: [], certain: false })));
 
@@ -1042,7 +1064,18 @@
         // ===== IDLE =====
         function resetIdle() {
             clearTimeout(idleTimer);
-            idleTimer = setTimeout(() => { if (peer) { peer.destroy(); peer = null; } document.getElementById('idle').classList.add('show'); log('閒置過久，強制失效', 'error'); }, IDLE_MS);
+            idleTimer = setTimeout(() => {
+                if (peer) { peer.destroy(); peer = null; }
+                document.getElementById('idle').classList.add('show');
+                log('閒置過久，強制失效', 'error');
+            }, IDLE_MS);
+        }
+        // Called when connection drops unexpectedly (not idle)
+        function showConnLost() {
+            const box = document.getElementById('idle');
+            box.querySelector('h2').textContent = '⚠️ 連線失效';
+            box.querySelector('p').innerHTML = '請重新建立房間 or 加入房間：<br>你可能已閒置超過1小時、<br>請檢查您的網路連線、<br>請檢查網路防火牆！';
+            box.classList.add('show');
         }
 
         // ===== ROOM =====
@@ -1092,7 +1125,7 @@
                 } else if (err.type === 'peer-unavailable') { alert('找不到房號，請確認正確。'); }
             });
         }
-        function leaveRoom() {
+        function leaveRoom(silent = false) {
             if (peer) { peer.destroy(); peer = null; }
             isHost = false; fullMyId = ''; roomName = ''; roomPw = ''; connections = {};
             clearLocal();
@@ -1101,9 +1134,16 @@
             E.btnLeave.style.display = 'none'; E.btnCopy.style.display = 'none';
             E.btnHost.disabled = false; E.btnJoin.disabled = false;
             E.btnReset.style.display = 'none'; E.plist.innerHTML = '';
-            log('連線已中斷', 'warn'); clearTimeout(idleTimer);
+            if (!silent) log('連線已中斷', 'warn');
+            clearTimeout(idleTimer);
         }
-        function rebuildRoom() { if (!confirm('重建房間將中斷所有連線，確定嗎？')) return; leaveRoom(); openM('m-create'); }
+        function rebuildRoom() {
+            if (!confirm('重建房間將中斷所有連線，確定嗎？')) return;
+            // Notify all members before destroying
+            broadcast({ type: 'ROOM_CLOSED', reason: '房主已重建房間，請重新加入。' });
+            leaveRoom(true);
+            openM('m-create');
+        }
         function reconnectCleanly() { window.location.hash = ''; history.replaceState('', document.title, window.location.pathname); location.reload(); }
         function editPw() {
             const pw = prompt('請輸入新密碼（留空移除）:', ''); if (pw === null) return;
@@ -1114,6 +1154,22 @@
         function copyInvite() {
             const url = window.location.origin + window.location.pathname + '#' + fullMyId;
             navigator.clipboard.writeText(url).then(() => toast('✅ 邀請連結已複製！'));
+        }
+        // ===== JOIN VIA INVITE LINK =====
+        function joinViaInvite() {
+            const nick = document.getElementById('inv-nick').value.trim();
+            const color = document.getElementById('inv-color').value;
+            if (!nick) return alert('請輸入暱稱。');
+            if (!/^[a-zA-Z0-9\u4e00-\u9fa5]{1,10}$/.test(nick)) return alert('暱稱請使用 1-10 位英數或中文字。');
+            // Apply nick/color
+            myNick = nick; myColor = color;
+            E.nickInp.value = myNick; E.nickInp.disabled = true; E.nickInp.style.opacity = '.7';
+            document.getElementById('swatch').style.background = myColor;
+            document.getElementById('col-inp').value = myColor;
+            E.btnSN.style.display = 'none'; E.btnEN.style.display = 'inline-flex';
+            E.initActs.style.display = 'flex'; E.joinSec.style.display = 'block';
+            closeM('m-invite');
+            startJoinById(inviteTargetId);
         }
 
         // ===== SEARCH ROOM =====
@@ -1183,15 +1239,39 @@
             conn.on('data', data => { handleMsg(conn, data); resetIdle(); });
             conn.on('close', () => {
                 const u = connections[conn.peer];
-                if (u) { log(`成員離開: ${u.nick}`, 'warn'); removeMarkers(u.nick); delete connections[conn.peer]; refreshPList(); if (isHost) broadcast({ type: 'NICK_LIST', users: getNickList() }); }
+                if (!u) return;
+                log(`成員離開: ${u.nick}`, 'warn');
+                const wasHostConn = !isHost && u.nick !== myNick; // guest lost host?
+                removeMarkers(u.nick);
+                delete connections[conn.peer];
+                if (isHost) {
+                    refreshPList();
+                    broadcast({ type: 'NICK_LIST', users: getNickList() });
+                } else {
+                    // Guest: if all connections gone (host left), show lost screen
+                    const remaining = Object.values(connections).filter(c => c.conn && c.conn.open);
+                    if (remaining.length === 0) {
+                        log('所有連線已中斷（房主可能已關閉房間）', 'error');
+                        showConnLost();
+                    } else {
+                        refreshPList();
+                    }
+                }
             });
-            conn.on('error', err => log(`通道錯誤: ${err}`, 'error'));
+            conn.on('error', err => {
+                log(`通道錯誤: ${err}`, 'error');
+                // If guest loses connection to host
+                if (!isHost && Object.values(connections).filter(c => c.conn && c.conn.open).length === 0) {
+                    setTimeout(() => {
+                        if (Object.values(connections).filter(c => c.conn && c.conn.open).length === 0) showConnLost();
+                    }, 3000);
+                }
+            });
         }
 
         // ===== MESSAGE HANDLER =====
         function handleMsg(conn, data) {
             if (data.type === 'PROBE') {
-                // Host responds to probe
                 if (!isHost) return;
                 conn.send({ type: 'PROBE_REPLY', roomName, hasPw: !!roomPw });
                 setTimeout(() => { try { conn.close(); } catch (e) { } }, 1000);
@@ -1200,7 +1280,7 @@
                 if (Object.values(connections).length >= 3) { conn.send({ type: 'REJECT', reason: '房間已滿（最多4人）。' }); setTimeout(() => conn.close(), 500); return; }
                 const isDup = Object.values(connections).some(v => v.nick === data.nick) || myNick === data.nick;
                 if (isDup) { conn.send({ type: 'REJECT', reason: `暱稱「${data.nick}」已有人使用。` }); setTimeout(() => conn.close(), 500); return; }
-                if (roomPw && data.password !== roomPw) { pendingConn = conn; pendingConn._pendingNick = data.nick; pendingConn._pendingColor = data.color; conn.send({ type: 'NEED_PW' }); return; }
+                if (roomPw && data.password !== roomPw) { pendingConn = conn; conn._pendingNick = data.nick; conn._pendingColor = data.color; conn.send({ type: 'NEED_PW' }); return; }
                 acceptJoin(conn, data);
             } else if (data.type === 'JOIN_PW') {
                 if (!isHost) return;
@@ -1217,7 +1297,8 @@
                 connections[conn.peer] = { conn, nick: data.hostNick || '房主', color: data.hostColor || '#f59e0b' };
                 mapData = JSON.parse(JSON.stringify(data.state));
                 roomName = data.roomName || ''; optAuto = data.optAuto !== false; optMembers = data.optMembers !== false;
-                for (let f = 0; f < 10; f++)for (let d = 0; d < 4; d++)updateDoor(f, d);
+                for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
+                if (optAuto) for (let f = 0; f < 10; f++) recalcMaybe(f);
                 log(`進入房間「${roomName}」成功！`, 'ok');
                 E.connPanel.style.display = 'none'; E.roomStatus.style.display = 'block';
                 E.ridDisp.textContent = conn.peer; E.rnameDisp.textContent = roomName;
@@ -1226,17 +1307,56 @@
                 E.membersSec.style.display = optMembers ? 'block' : 'none';
                 E.joinId.value = ''; history.replaceState(null, document.title, window.location.pathname);
                 updatePListFromWelcome(data.users); resetIdle();
-            } else if (data.type === 'NICK_LIST') { updatePListFromWelcome(data.users); }
-            else if (data.type === 'REJECT') { setLoad(false); alert(data.reason); conn.close(); }
-            else if (data.type === 'SYNC') { applySync(data); if (isHost) broadcast(data, conn); }
-            else if (data.type === 'RESET') { clearLocal(); if (isHost) broadcast(data, conn); }
-            else if (data.type === 'KICK') { alert('您已被房主踢出房間。'); leaveRoom(); }
-            else if (data.type === 'UPDATE_NICK') { if (connections[conn.peer]) { connections[conn.peer].nick = data.nick; connections[conn.peer].color = data.color; } refreshPList(); if (isHost) broadcast(data, conn); }
-            else if (data.type === 'UPDATE_ROOM') { roomName = data.roomName || roomName; E.rnameDisp.textContent = roomName; E.rpwBadge.style.display = data.hasPw ? 'inline' : 'none'; }
+            } else if (data.type === 'NICK_LIST') {
+                updatePListFromWelcome(data.users);
+            } else if (data.type === 'REJECT') {
+                setLoad(false); alert(data.reason); conn.close();
+            } else if (data.type === 'SYNC') {
+                applySync(data);
+                if (isHost) broadcast(data, conn);
+                // Re-broadcast maybe state so all clients recalc consistently
+                if (isHost && optAuto) {
+                    const maybeMsg = { type: 'MAYBE_STATE', f: data.f, state: mapData[data.f].map(c => ({ maybe: c.maybe, certain: c.certain })) };
+                    broadcast(maybeMsg);
+                }
+            } else if (data.type === 'MAYBE_STATE') {
+                // Guest receives computed maybe state from host
+                for (let d = 0; d < 4; d++) {
+                    if (data.state[d]) {
+                        mapData[data.f][d].maybe = data.state[d].maybe || [];
+                        mapData[data.f][d].certain = !!data.state[d].certain;
+                    }
+                    updateDoor(data.f, d);
+                }
+            } else if (data.type === 'RESET') {
+                clearLocal(); if (isHost) broadcast(data, conn);
+            } else if (data.type === 'KICK') {
+                alert('您已被房主踢出房間。'); leaveRoom();
+            } else if (data.type === 'ROOM_CLOSED') {
+                alert(data.reason || '房主已關閉房間。');
+                leaveRoom(true);
+            } else if (data.type === 'HOST_TRANSFER') {
+                // This client is promoted to host
+                isHost = true;
+                E.btnReset.style.display = 'inline-flex';
+                E.btnCopy.style.display = 'inline-flex';
+                // Rebuild connections from remaining peers info
+                log(`您已成為新房主！`, 'ok');
+                toast('👑 您已成為新房主');
+                refreshPList();
+            } else if (data.type === 'UPDATE_NICK') {
+                if (connections[conn.peer]) { connections[conn.peer].nick = data.nick; connections[conn.peer].color = data.color; }
+                refreshPList(); if (isHost) broadcast(data, conn);
+            } else if (data.type === 'UPDATE_ROOM') {
+                roomName = data.roomName || roomName; E.rnameDisp.textContent = roomName;
+                E.rpwBadge.style.display = data.hasPw ? 'inline' : 'none';
+            }
         }
         function acceptJoin(conn, data) {
             connections[conn.peer] = { conn, nick: data.nick, color: data.color || '#94a3b8' };
             log(`歡迎成員: ${data.nick}`, 'ok');
+            // Recalc maybe before sending state, so new member gets up-to-date state
+            if (optAuto) for (let f = 0; f < 10; f++) recalcMaybe(f);
             const list = getNickList(); broadcast({ type: 'NICK_LIST', users: list });
             conn.send({
                 type: 'WELCOME', state: JSON.parse(JSON.stringify(mapData)), users: list,
@@ -1244,22 +1364,69 @@
             });
             refreshPList();
         }
+        // ===== HOST TRANSFER (when host leaves, promote first peer) =====
+        function transferHost() {
+            const peers = Object.values(connections).filter(c => c.conn && c.conn.open);
+            if (peers.length === 0) return;
+            const newHost = peers[0];
+            newHost.conn.send({ type: 'HOST_TRANSFER' });
+            log(`房主已轉交給 ${newHost.nick}`, 'warn');
+        }
 
         // ===== SYNC =====
         function applySync(data) {
             const c = mapData[data.f][data.d];
             if (data.action === 'pass') {
-                for (let d = 0; d < 4; d++) { if (mapData[data.f][d].owner === data.owner && d !== data.d) { mapData[data.f][d].v = 0; mapData[data.f][d].owner = null; mapData[data.f][d].ownerColor = null; updateDoor(data.f, d); } }
+                // Clear previous pass for this owner on this floor
+                for (let d = 0; d < 4; d++) {
+                    if (mapData[data.f][d].owner === data.owner && d !== data.d) {
+                        mapData[data.f][d].v = 0; mapData[data.f][d].owner = null; mapData[data.f][d].ownerColor = null;
+                        updateDoor(data.f, d);
+                    }
+                }
                 c.v = 1; c.owner = data.owner; c.ownerColor = data.color;
-            } else if (data.action === 'unpass') { c.v = 0; c.owner = null; c.ownerColor = null; }
-            else if (data.action === 'error') { if (!c.errors.includes(data.owner)) c.errors.push(data.owner); }
-            else if (data.action === 'unerror') { c.errors = c.errors.filter(n => n !== data.owner); }
+                // Auto-mark: since this owner picked this cell, mark all other cells as owner's error
+                // (they can't be in other cells on this floor)
+                if (optAuto) {
+                    for (let d = 0; d < 4; d++) {
+                        if (d !== data.d && !mapData[data.f][d].errors.includes(data.owner)) {
+                            mapData[data.f][d].errors.push(data.owner);
+                            // Broadcast this auto-error if we are host
+                            if (isHost) {
+                                const autoMsg = { type: 'SYNC', f: data.f, d, action: 'error', owner: data.owner, color: data.color, auto: true };
+                                broadcast(autoMsg);
+                            }
+                        }
+                    }
+                }
+            } else if (data.action === 'unpass') {
+                c.v = 0; c.owner = null; c.ownerColor = null;
+                // Remove auto-errors added when pass was set
+                if (optAuto) {
+                    for (let d = 0; d < 4; d++) {
+                        if (d !== data.d) {
+                            mapData[data.f][d].errors = mapData[data.f][d].errors.filter(n => n !== data.owner);
+                            if (isHost) {
+                                const autoMsg = { type: 'SYNC', f: data.f, d, action: 'unerror', owner: data.owner, color: data.color, auto: true };
+                                broadcast(autoMsg);
+                            }
+                        }
+                    }
+                }
+            } else if (data.action === 'error') {
+                if (!c.errors.includes(data.owner)) c.errors.push(data.owner);
+            } else if (data.action === 'unerror') {
+                c.errors = c.errors.filter(n => n !== data.owner);
+            }
             updateDoor(data.f, data.d);
             if (optAuto) recalcMaybe(data.f);
         }
         function syncMsg(msg) {
             if (isHost) broadcast(msg);
-            else { const hc = Object.values(connections).find(c => c.conn && c.conn.open && !isHost); if (hc) hc.conn.send(msg); }
+            else {
+                const hc = Object.values(connections).find(c => c.conn && c.conn.open);
+                if (hc) hc.conn.send(msg);
+            }
         }
 
         // ===== ALL PLAYERS (real nicks, no "房主") =====
@@ -1397,7 +1564,7 @@
 
         // ===== MEMBERS =====
         function getNickList() {
-            return [{ nick: myNick, color: myColor, isHost: true }, ...Object.values(connections).map(c => ({ nick: c.nick, color: c.color || '#94a3b8', isHost: false }))];
+            return [{ nick: myNick, color: myColor, isHost: isHost }, ...Object.values(connections).map(c => ({ nick: c.nick, color: c.color || '#94a3b8', isHost: false }))];
         }
         function broadcast(msg, exclude = null) { Object.values(connections).forEach(c => { if (c.conn && c.conn.open && c.conn !== exclude) c.conn.send(msg); }); }
         function refreshPList() { renderTags(getNickList()); }
@@ -1415,7 +1582,16 @@
         function kickPlayer(nick) {
             if (!confirm(`確定踢出 ${nick}？`)) return;
             const entry = Object.entries(connections).find(([, v]) => v.nick === nick);
-            if (entry) { const [pid, { conn }] = entry; conn.send({ type: 'KICK' }); setTimeout(() => conn.close(), 300); delete connections[pid]; removeMarkers(nick); refreshPList(); broadcast({ type: 'NICK_LIST', users: getNickList() }); log(`已踢出: ${nick}`, 'warn'); }
+            if (entry) {
+                const [pid, { conn }] = entry;
+                conn.send({ type: 'KICK' });
+                setTimeout(() => conn.close(), 300);
+                delete connections[pid];
+                removeMarkers(nick);
+                refreshPList();
+                broadcast({ type: 'NICK_LIST', users: getNickList() });
+                log(`已踢出: ${nick}`, 'warn');
+            }
         }
         function removeMarkers(nick) {
             for (let f = 0; f < 10; f++)for (let d = 0; d < 4; d++) {
@@ -1444,8 +1620,34 @@
         // ===== BOOT =====
         renderGrid();
         const ih = window.location.hash.substring(1);
-        if (ih) { E.joinId.value = ih; log('偵測到房號，請設定暱稱後加入。', 'warn'); }
+        if (ih) {
+            // Direct invite link: show modal to get nick/color, then auto-join
+            inviteTargetId = ih;
+            history.replaceState(null, document.title, window.location.pathname);
+            // Check if needs password by probing first
+            const tmpPeer = new Peer({ debug: 0 });
+            tmpPeer.on('open', () => {
+                const probe = tmpPeer.connect(ih, { reliable: true });
+                probe.on('open', () => probe.send({ type: 'PROBE' }));
+                probe.on('data', d => {
+                    if (d.type === 'PROBE_REPLY') {
+                        document.getElementById('inv-pw-wrap').style.display = d.hasPw ? 'block' : 'none';
+                        try { probe.close(); } catch (e) { }
+                        tmpPeer.destroy();
+                    }
+                });
+                setTimeout(() => { try { probe.close(); tmpPeer.destroy(); } catch (e) { } }, 5000);
+            });
+            openM('m-invite');
+            log(`偵測到邀請房號，請填寫資料後加入。`, 'warn');
+        }
         log('歡迎使用 Artale_RJPQ_oojump！請先設定暱稱。', 'ok');
+        // ===== HOST LEAVE: transfer before unload =====
+        window.addEventListener('beforeunload', () => {
+            if (isHost && Object.values(connections).some(c => c.conn && c.conn.open)) {
+                transferHost();
+            }
+        });
     </script>
 </body>
 
