@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Artale RJPQ 輔助工具 - 多人即時同步標記，協助隊伍順利通關 Romeo and Juliet Party Quest">
+    <meta property="og:title" content="Artale_RJPQ_oojump - 輔助工具">
+    <meta property="og:description" content="多人即時同步標記，輔助隊伍順利通關 RJPQ">
+    <meta property="og:image" content="./猶利塔.png">
+    <title>Artale_RJPQ_oojump</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f0f1a;
+            --bg-card: #1a1a2e;
+            --bg-panel: #16213e;
+            --accent: #7c3aed;
+            --accent2: #a855f7;
+            --accent-glow: rgba(124, 58, 237, 0.4);
+            --gold: #f59e0b;
+            --gold-light: #fcd34d;
+            --red: #ef4444;
+            --green: #22c55e;
+            --blue: #3b82f6;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --border-accent: rgba(124, 58, 237, 0.5);
+            --door-default: linear-gradient(135deg, #2d3748, #1a202c);
+            --door-pass: linear-gradient(135deg, #22c55e, #16a34a);
+            --door-error: linear-gradient(135deg, #ef4444, #b91c1c);
+            --door-maybe: linear-gradient(135deg, #f59e0b, #d97706);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --shadow-glow: 0 0 20px var(--accent-glow);
+            --transition: 0.2s ease;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: var(--bg-dark);
+            background-image: radial-gradient(ellipse at 20% 20%, rgba(124, 58, 237, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 16px;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .main-wrapper {
+            width: 100%;
+            max-width: 480px;
+        }
+
+        /* HEADER */
+        .app-header {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: var(--radius) var(--radius) 0 0;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-glow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .header-badge {
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 3px 10px;
+            border-radius: 20px;
+            color: var(--gold-light);
+            font-weight: 700;
+        }
+
+        /* CARD */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0;
+            padding: 16px;
+            margin-bottom: 1px;
+        }
+
+        .card:last-child {
+            border-radius: 0 0 var(--radius) var(--radius);
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        /* NICK SECTION */
+        .nick-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .color-picker-wrap {
+            position: relative;
+        }
+
+        .color-swatch {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 3px solid var(--border);
+            cursor: pointer;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+
+        .color-swatch:hover {
+            border-color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        #color-input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .input-field {
+            flex: 1;
+            min-width: 100px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 14px;
+            transition: var(--transition);
+            outline: none;
+        }
+
+        .input-field:focus {
+            border-color: var(--accent);
+            background: rgba(124, 58, 237, 0.1);
+        }
+
+        .input-field::placeholder {
+            color: var(--text-muted);
+        }
+
+        .input-field:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        /* BUTTONS */
+        .btn {
+            padding: 8px 14px;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--text);
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-color: transparent;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn.primary:hover:not(:disabled) {
+            box-shadow: 0 6px 20px var(--accent-glow);
+            transform: translateY(-1px);
+        }
+
+        .btn.danger {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+        }
+
+        .btn.danger:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.35);
+        }
+
+        .btn.gold {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: rgba(245, 158, 11, 0.4);
+            color: var(--gold-light);
+        }
+
+        .btn.sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        /* ROOM SECTION */
+        .room-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .room-info-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .room-id-display {
+            flex: 1;
+            font-size: 12px;
+            color: var(--text-muted);
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .options-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .option-label {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .toggle-cb {
+            appearance: none;
+            width: 36px;
+            height: 20px;
+            background: #374151;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .toggle-cb::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border-radius: 50%;
+            transition: var(--transition);
+        }
+
+        .toggle-cb:checked {
+            background: var(--accent);
+        }
+
+        .toggle-cb:checked::after {
+            left: 19px;
+        }
+
+        /* JOIN ROW */
+        .join-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .join-row .input-field {
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        /* MEMBERS */
+        .member-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-height: 32px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+
+        .member-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            border: 1px solid;
+            transition: var(--transition);
+        }
+
+        .member-tag .kick-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: inherit;
+            font-size: 12px;
+            opacity: 0.6;
+            transition: var(--transition);
+            padding: 0 2px;
+        }
+
+        .member-tag .kick-btn:hover {
+            opacity: 1;
+        }
+
+        /* LOG */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            margin-bottom: 6px;
+        }
+
+        .log-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .log-panel {
+            background: #000;
+            color: #00ff88;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            height: 90px;
+            overflow-y: auto;
+            padding: 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid #1a3a1a;
+            display: none;
+            flex-direction: column-reverse;
+        }
+
+        .log-panel.show {
+            display: flex;
+        }
+
+        .log-entry {
+            line-height: 1.4;
+        }
+
+        .log-warn {
+            color: #f59e0b;
+        }
+
+        .log-error {
+            color: #ef4444;
+        }
+
+        .log-success {
+            color: #22c55e;
+        }
+
+        /* MAP GRID */
+        .map-area {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 0;
+            padding: 12px;
+            margin-bottom: 1px;
+        }
+
+        .map-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        .floor-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .floor-label {
+            width: 28px;
+            font-size: 11px;
+            font-weight: 900;
+            color: var(--accent2);
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .door-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            flex: 1;
+        }
+
+        .door {
+            height: 44px;
+            background: var(--door-default);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .door::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent);
+            pointer-events: none;
+        }
+
+        .door:hover:not(.locked) {
+            border-color: var(--accent);
+            box-shadow: 0 0 12px var(--accent-glow);
+            transform: translateY(-1px);
+        }
+
+        .door:active:not(.locked) {
+            transform: translateY(0);
+        }
+
+        .door.state-pass {
+            background: var(--door-pass);
+            border-color: rgba(34, 197, 94, 0.5);
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+        }
+
+        .door.state-error {
+            background: var(--door-error);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        .door.state-maybe {
+            background: var(--door-maybe);
+            border-color: rgba(245, 158, 11, 0.5);
+            animation: pulse-maybe 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-maybe {
+
+            0%,
+            100% {
+                box-shadow: 0 0 6px rgba(245, 158, 11, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 16px rgba(245, 158, 11, 0.6);
+            }
+        }
+
+        .door-icon {
+            font-size: 18px;
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        .door-owner {
+            font-size: 9px;
+            font-weight: 700;
+            position: absolute;
+            bottom: 3px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 4px;
+            color: rgba(255, 255, 255, 0.9);
+            pointer-events: none;
+        }
+
+        .maybe-indicators {
+            position: absolute;
+            top: 2px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 2px;
+            pointer-events: none;
+        }
+
+        .maybe-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        /* FOOTER TOOLS */
+        .footer-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0 0 var(--radius) var(--radius);
+            padding: 12px 16px;
+        }
+
+        .footer-btns {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .instructions {
+            font-size: 11px;
+            color: var(--text-muted);
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px;
+            line-height: 1.8;
+        }
+
+        /* LOADING OVERLAY */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 15, 26, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 3px solid rgba(124, 58, 237, 0.2);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .load-msg {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent2);
+        }
+
+        /* MODAL */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius);
+            padding: 24px;
+            width: 100%;
+            max-width: 360px;
+            box-shadow: var(--shadow), var(--shadow-glow);
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 900;
+            margin-bottom: 16px;
+            color: var(--accent2);
+        }
+
+        .modal-field {
+            margin-bottom: 12px;
+        }
+
+        .modal-field label {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .modal-btns {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+
+        /* IDLE NOTICE */
+        #idle-notice {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9998;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #idle-notice.show {
+            display: flex;
+        }
+
+        .idle-box {
+            background: var(--bg-card);
+            border: 2px solid var(--red);
+            border-radius: var(--radius);
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(239, 68, 68, 0.4);
+        }
+
+        .idle-box h2 {
+            color: #fca5a5;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .idle-box p {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        /* TOAST */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-80px);
+            background: var(--bg-card);
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius-sm);
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent2);
+            box-shadow: var(--shadow);
+            z-index: 10000;
+            transition: transform 0.3s ease;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        /* RESPONSIVE */
+        @media(max-width:360px) {
+            .door {
+                height: 38px;
+            }
+
+            .btn {
+                padding: 7px 10px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <div class="load-msg" id="load-msg">系統連線中...</div>
+    </div>
+
+    <div id="idle-notice">
+        <div class="idle-box">
+            <h2>⏱️ 閒置過久</h2>
+            <p>房間已閒置超過 1 小時，連線已失效。<br>請重新創建房間。</p>
+            <button class="btn primary" onclick="location.reload()">🔄 重新啟動</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="create-modal">
+        <div class="modal-box">
+            <div class="modal-title">🏠 建立新房間</div>
+            <div class="modal-field">
+                <label>房間名稱</label>
+                <input class="input-field" id="room-name-input" maxlength="20" placeholder="輸入房間名稱..."
+                    style="width:100%;">
+            </div>
+            <div class="modal-field">
+                <label>房間密碼（選填）</label>
+                <input class="input-field" id="room-pw-input" type="password" maxlength="20" placeholder="留空則不設密碼..."
+                    style="width:100%;">
+            </div>
+            <div class="modal-field">
+                <label style="margin-bottom:10px;">房間選項</label>
+                <div class="options-row">
+                    <label class="option-label">
+                        <input type="checkbox" class="toggle-cb" id="opt-auto-mark" checked>
+                        <span>自動標記可能性</span>
+                    </label>
+                    <label class="option-label">
+                        <input type="checkbox" class="toggle-cb" id="opt-show-members" checked>
+                        <span>顯示成員名單</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-btns">
+                <button class="btn" onclick="closeModal('create-modal')">取消</button>
+                <button class="btn primary" onclick="confirmCreateRoom()">✨ 建立</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="join-pw-modal">
+        <div class="modal-box">
+            <div class="modal-title">🔐 輸入密碼</div>
+            <div class="modal-field">
+                <label>此房間需要密碼才能加入</label>
+                <input class="input-field" id="join-pw-input" type="password" placeholder="輸入密碼..." style="width:100%;">
+            </div>
+            <div class="modal-btns">
+                <button class="btn" onclick="closeModal('join-pw-modal')">取消</button>
+                <button class="btn primary" id="confirm-join-pw-btn">確認加入</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="main-wrapper">
+        <div class="app-header">
+            <div class="header-title">⚔️ Artale_RJPQ_oojump</div>
+            <div class="header-badge">Romeo &amp; Juliet PQ</div>
+        </div>
+
+        <!-- 暱稱區 -->
+        <div class="card">
+            <div class="card-title">玩家設定</div>
+            <div class="nick-row">
+                <div class="color-picker-wrap">
+                    <div class="color-swatch" id="color-swatch" style="background:#7c3aed;"
+                        onclick="document.getElementById('color-input').click()"></div>
+                    <input type="color" id="color-input" value="#7c3aed" oninput="onColorChange(this.value)">
+                </div>
+                <input class="input-field" type="text" id="nick-input" maxlength="10" placeholder="輸入暱稱 (中英數)...">
+            </div>
+            <div class="btn-row">
+                <button class="btn primary" id="btn-save-nick" onclick="saveNick()">✅ 確定暱稱</button>
+                <button class="btn" id="btn-edit-nick" style="display:none" onclick="editNick()">✏️ 修改暱稱</button>
+                <button class="btn gold" id="btn-copy" style="display:none" onclick="copyInvite()">🔗 邀請連結</button>
+                <button class="btn danger" id="btn-leave" style="display:none" onclick="leaveRoom()">🚪 離開</button>
+            </div>
+        </div>
+
+        <!-- 房間區 -->
+        <div class="card">
+            <div class="card-title">房間設定</div>
+            <div id="conn-panel">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;" id="init-actions" style="display:none">
+                    <button class="btn primary" id="btn-host" style="flex:1" onclick="openCreateModal()">🏠
+                        建立房間</button>
+                </div>
+                <div class="join-row" id="join-row" style="display:none;margin-top:8px;">
+                    <input class="input-field" type="text" id="join-id" placeholder="貼上房號加入..."
+                        style="font-family:monospace;font-size:12px;">
+                    <button class="btn" id="btn-join" onclick="startJoin()">加入</button>
+                </div>
+            </div>
+            <div id="room-status-panel" style="display:none;">
+                <div class="room-box">
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">
+                        🏠 <b id="room-name-display" style="color:var(--accent2);">未命名</b>
+                        <span id="room-pw-badge"
+                            style="display:none;margin-left:6px;font-size:11px;background:rgba(245,158,11,0.2);color:var(--gold-light);padding:1px 6px;border-radius:10px;">🔐
+                            已設密碼</span>
+                    </div>
+                    <div class="room-id-display" id="room-id-display">-</div>
+                    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                        <button class="btn sm" onclick="openEditPwModal()">🔑 編輯密碼</button>
+                        <button class="btn sm" onclick="refreshPage()">🔄 重新整理</button>
+                        <button class="btn sm danger" onclick="rebuildRoom()">🔨 重建房間</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 成員名單 -->
+            <div id="members-section">
+                <div class="card-title" style="margin-top:8px;">房間成員</div>
+                <div class="member-list" id="participant-list"></div>
+            </div>
+
+            <!-- 日誌 -->
+            <div style="margin-top:12px;">
+                <div class="log-header" onclick="toggleLog()">
+                    <span class="log-title">📋 系統日誌</span>
+                    <button class="btn sm" id="btn-log-toggle">顯示</button>
+                </div>
+                <div class="log-panel" id="log-panel"></div>
+            </div>
+        </div>
+
+        <!-- 地圖區 -->
+        <div class="map-area">
+            <div class="map-title">⬆ 樓梯地圖（L10 → L1）</div>
+            <div id="map-grid"></div>
+        </div>
+
+        <!-- 底部工具列 -->
+        <div class="footer-card">
+            <div class="footer-btns">
+                <button class="btn danger" id="btn-reset-all" style="display:none;flex:1;" onclick="resetAll()">🗑️
+                    清空所有標記</button>
+                <button class="btn" onclick="reconnectCleanly()" style="flex:1;">🔄 重新連線</button>
+            </div>
+            <div class="instructions">
+                🖱️ <b>左鍵</b>：標記正確（每層限 1 格）<br>
+                🖱️ <b>右鍵</b>：標記死路（每層限 3 格）<br>
+                📱 <b>手機</b>：點擊=正確 / 雙擊=死路<br>
+                🟡 <b>黃色閃爍</b>：系統推算可能格（自動標記功能）<br>
+                ⚠️ P2P 在嚴格防火牆下可能無法連線。
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== 狀態 =====
+        let peer = null;
+        let myNick = "";
+        let myColor = "#7c3aed";
+        let isHost = false;
+        let fullMyId = "";
+        let roomName = "";
+        let roomPassword = "";
+        let optAutoMark = true;
+        let optShowMembers = true;
+        let connections = {};
+        let mapData = Array(10).fill(null).map(() =>
+            Array(4).fill(null).map(() => ({ v: 0, owner: null, ownerColor: null, errors: [] }))
+        );
+        let idleTimer = null;
+        const IDLE_MS = 60 * 60 * 1000;
+
+        // ===== DOM =====
+        const els = {
+            load: document.getElementById('loading'),
+            loadMsg: document.getElementById('load-msg'),
+            log: document.getElementById('log-panel'),
+            logBtn: document.getElementById('btn-log-toggle'),
+            joinInput: document.getElementById('join-id'),
+            btnCopy: document.getElementById('btn-copy'),
+            grid: document.getElementById('map-grid'),
+            btnHost: document.getElementById('btn-host'),
+            btnJoin: document.getElementById('btn-join'),
+            pList: document.getElementById('participant-list'),
+            btnReset: document.getElementById('btn-reset-all'),
+            nickInput: document.getElementById('nick-input'),
+            btnSaveNick: document.getElementById('btn-save-nick'),
+            btnEditNick: document.getElementById('btn-edit-nick'),
+            btnLeave: document.getElementById('btn-leave'),
+            initActions: document.getElementById('init-actions'),
+            joinRow: document.getElementById('join-row'),
+            connPanel: document.getElementById('conn-panel'),
+            roomStatus: document.getElementById('room-status-panel'),
+            roomIdDisplay: document.getElementById('room-id-display'),
+            roomNameDisplay: document.getElementById('room-name-display'),
+            roomPwBadge: document.getElementById('room-pw-badge'),
+            membersSection: document.getElementById('members-section'),
+        };
+
+        // ===== 工具 =====
+        function log(msg, type = "info") {
+            const e = document.createElement('div');
+            e.className = 'log-entry' + (type !== 'info' ? ' log-' + type : '');
+            e.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            els.log.prepend(e);
+        }
+        function toggleLog() {
+            els.log.classList.toggle('show');
+            els.logBtn.textContent = els.log.classList.contains('show') ? '關閉' : '顯示';
+        }
+        function setLoading(show, msg = "處理中...") {
+            els.load.style.display = show ? 'flex' : 'none';
+            els.loadMsg.textContent = msg;
+        }
+        function showToast(msg, duration = 2500) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), duration);
+        }
+        function openModal(id) { document.getElementById(id).classList.add('show'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+        // ===== 顏色 =====
+        function onColorChange(val) {
+            myColor = val;
+            document.getElementById('color-swatch').style.background = val;
+            if (myNick) broadcastColorNick();
+        }
+        function broadcastColorNick() {
+            broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor });
+        }
+
+        // ===== 暱稱 =====
+        function saveNick() {
+            let val = els.nickInput.value.trim();
+            if (!val) val = "冒險者" + Math.floor(1000 + Math.random() * 9000);
+            if (!/^[a-zA-Z0-9\u4e00-\u9fa5]{1,10}$/.test(val)) {
+                return alert("暱稱請使用 1-10 位英數或中文字。");
+            }
+            myNick = val;
+            els.nickInput.value = myNick;
+            els.nickInput.disabled = true;
+            els.btnSaveNick.style.display = 'none';
+            els.btnEditNick.style.display = 'inline-flex';
+            els.nickInput.style.opacity = '0.7';
+            els.initActions.style.display = 'flex';
+            els.joinRow.style.display = 'flex';
+            log(`暱稱設定：${myNick}`, 'success');
+            refreshParticipantList();
+        }
+        function editNick() {
+            if (!confirm("修改暱稱將斷開目前連線，確定嗎？")) return;
+            leaveRoom();
+            els.nickInput.disabled = false;
+            els.nickInput.style.opacity = '1';
+            els.btnSaveNick.style.display = 'inline-flex';
+            els.btnEditNick.style.display = 'none';
+        }
+
+        // ===== 閒置計時 =====
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+                if (peer) {
+                    peer.destroy();
+                    peer = null;
+                }
+                document.getElementById('idle-notice').classList.add('show');
+                log("閒置過久，房間強制失效。", 'error');
+            }, IDLE_MS);
+        }
+
+        // ===== 房間建立 =====
+        function openCreateModal() {
+            if (!myNick) return alert("請先設定暱稱。");
+            openModal('create-modal');
+        }
+        function openEditPwModal() {
+            const pw = prompt("請輸入新密碼（留空則移除密碼）：", "");
+            if (pw === null) return;
+            roomPassword = pw.trim();
+            els.roomPwBadge.style.display = roomPassword ? 'inline' : 'none';
+            broadcast({ type: 'UPDATE_ROOM', roomName, roomPassword: !!roomPassword });
+            showToast(roomPassword ? "🔐 密碼已更新" : "🔓 密碼已移除");
+            log("密碼已更新。", 'success');
+        }
+        function confirmCreateRoom() {
+            const name = document.getElementById('room-name-input').value.trim() || "RJPQ 隊伍";
+            const pw = document.getElementById('room-pw-input').value.trim();
+            roomName = name;
+            roomPassword = pw;
+            optAutoMark = document.getElementById('opt-auto-mark').checked;
+            optShowMembers = document.getElementById('opt-show-members').checked;
+            closeModal('create-modal');
+            startHost();
+        }
+        function leaveRoom() {
+            if (peer) { peer.destroy(); peer = null; }
+            isHost = false; fullMyId = ""; roomName = ""; roomPassword = "";
+            connections = {};
+            clearLocal();
+            els.initActions.style.display = 'flex';
+            els.joinRow.style.display = 'flex';
+            els.connPanel.style.display = 'block';
+            els.roomStatus.style.display = 'none';
+            els.btnLeave.style.display = 'none';
+            els.btnCopy.style.display = 'none';
+            els.btnHost.disabled = false;
+            els.btnJoin.disabled = false;
+            els.btnReset.style.display = 'none';
+            els.pList.innerHTML = '';
+            log("連線已中斷。", 'warn');
+            clearTimeout(idleTimer);
+        }
+        function refreshPage() { location.reload(); }
+        function rebuildRoom() {
+            if (!confirm("重建房間將中斷所有連線，確定嗎？")) return;
+            leaveRoom();
+            openModal('create-modal');
+        }
+        function reconnectCleanly() {
+            window.location.hash = "";
+            history.replaceState("", document.title, window.location.pathname);
+            location.reload();
+        }
+
+        // ===== PeerJS =====
+        function initPeer(onReady) {
+            if (peer) return onReady();
+            setLoading(true, "建立 P2P 網關...");
+            peer = new Peer({
+                debug: 1,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun.cloudflare.com:3478' }
+                    ]
+                }
+            });
+            peer.on('open', id => {
+                fullMyId = id;
+                log(`網關就緒。房號: ${id.substring(0, 8)}...`, 'success');
+                setLoading(false);
+                onReady();
+            });
+            peer.on('connection', conn => setupConnection(conn));
+            peer.on('error', err => {
+                setLoading(false);
+                log(`網關錯誤: ${err.type}`, 'error');
+                if (err.type === 'peer-unavailable') alert("找不到房號，請確認房號是否正確。");
+            });
+        }
+        function startHost() {
+            initPeer(() => {
+                isHost = true;
+                window.location.hash = fullMyId;
+                els.connPanel.style.display = 'none';
+                els.roomStatus.style.display = 'block';
+                els.roomIdDisplay.textContent = fullMyId;
+                els.roomNameDisplay.textContent = roomName;
+                els.roomPwBadge.style.display = roomPassword ? 'inline' : 'none';
+                els.btnCopy.style.display = 'inline-flex';
+                els.btnLeave.style.display = 'inline-flex';
+                els.btnReset.style.display = 'inline-flex';
+                els.membersSection.style.display = optShowMembers ? 'block' : 'none';
+                log(`房間「${roomName}」已建立。您現在是房主。`, 'success');
+                refreshParticipantList();
+                resetIdleTimer();
+            });
+        }
+        function startJoin() {
+            const targetId = els.joinInput.value.trim();
+            if (!targetId) return alert("請貼上房號");
+            if (!myNick) return alert("請先設定暱稱。");
+            initPeer(() => {
+                setLoading(true, "正在接入...");
+                const conn = peer.connect(targetId, { reliable: true });
+                setupConnection(conn);
+                conn.on('open', () => {
+                    log("已連接房主，申請加入...", 'info');
+                    conn.send({ type: 'JOIN', nick: myNick, color: myColor });
+                });
+                setTimeout(() => {
+                    if (els.load.style.display === 'flex' && !Object.values(connections).length) {
+                        setLoading(false);
+                        log("連線申請超時。", 'error');
+                    }
+                }, 12000);
+            });
+        }
+        function setupConnection(conn) {
+            conn.on('data', data => {
+                handleP2PMessage(conn, data);
+                resetIdleTimer();
+            });
+            conn.on('close', () => {
+                const user = connections[conn.peer];
+                if (user) {
+                    log(`成員離開: ${user.nick}`, 'warn');
+                    removeUserMarkers(user.nick);
+                    delete connections[conn.peer];
+                    refreshParticipantList();
+                    if (isHost) broadcast({ type: 'NICK_LIST', users: getFullNickList() });
+                }
+            });
+            conn.on('error', err => log(`通道錯誤: ${err}`, 'error'));
+        }
+
+        // ===== 訊息處理 =====
+        function handleP2PMessage(conn, data) {
+            if (data.type === 'JOIN') {
+                if (!isHost) return;
+                if (Object.values(connections).length >= 3) {
+                    conn.send({ type: 'REJECT', reason: '房間已滿（最多4人）。' });
+                    setTimeout(() => conn.close(), 500); return;
+                }
+                const isDup = Object.values(connections).some(v => v.nick === data.nick) || myNick === data.nick;
+                if (isDup) {
+                    conn.send({ type: 'REJECT', reason: `暱稱「${data.nick}」已有人使用。` });
+                    setTimeout(() => conn.close(), 500); return;
+                }
+                if (roomPassword && data.password !== roomPassword) {
+                    conn.send({ type: 'NEED_PW' });
+                    pendingConn = conn;
+                    return;
+                }
+                acceptJoin(conn, data);
+            } else if (data.type === 'JOIN_PW') {
+                if (!isHost) return;
+                if (data.password !== roomPassword) {
+                    conn.send({ type: 'REJECT', reason: '密碼錯誤。' }); return;
+                }
+                acceptJoin(conn, data);
+            } else if (data.type === 'NEED_PW') {
+                setLoading(false);
+                openModal('join-pw-modal');
+                document.getElementById('confirm-join-pw-btn').onclick = () => {
+                    const pw = document.getElementById('join-pw-input').value;
+                    closeModal('join-pw-modal');
+                    conn.send({ type: 'JOIN_PW', nick: myNick, color: myColor, password: pw });
+                };
+            } else if (data.type === 'WELCOME') {
+                setLoading(false);
+                isHost = false;
+                connections[conn.peer] = { conn, nick: '房主', color: '#f59e0b' };
+                mapData = JSON.parse(JSON.stringify(data.state));
+                roomName = data.roomName || '';
+                optAutoMark = data.optAutoMark !== false;
+                optShowMembers = data.optShowMembers !== false;
+                for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoorUI(f, d);
+                log(`進入房間「${roomName}」成功！`, 'success');
+                els.connPanel.style.display = 'none';
+                els.roomStatus.style.display = 'block';
+                els.roomIdDisplay.textContent = conn.peer;
+                els.roomNameDisplay.textContent = roomName;
+                els.roomPwBadge.style.display = data.hasPw ? 'inline' : 'none';
+                els.btnLeave.style.display = 'inline-flex';
+                els.membersSection.style.display = optShowMembers ? 'block' : 'none';
+                els.joinInput.value = '';
+                history.replaceState(null, document.title, window.location.pathname);
+                updateParticipantListFromWelcome(data.users);
+                resetIdleTimer();
+            } else if (data.type === 'NICK_LIST') {
+                updateParticipantListFromWelcome(data.users);
+            } else if (data.type === 'REJECT') {
+                setLoading(false);
+                alert(data.reason);
+                conn.close();
+            } else if (data.type === 'SYNC') {
+                applySync(data);
+                if (isHost) broadcast(data, conn);
+            } else if (data.type === 'RESET') {
+                clearLocal();
+                if (isHost) broadcast(data, conn);
+            } else if (data.type === 'KICK') {
+                alert("您已被房主踢出房間。");
+                leaveRoom();
+            } else if (data.type === 'UPDATE_NICK') {
+                if (connections[conn.peer]) {
+                    connections[conn.peer].nick = data.nick;
+                    connections[conn.peer].color = data.color;
+                }
+                refreshParticipantList();
+                if (isHost) broadcast(data, conn);
+            } else if (data.type === 'UPDATE_ROOM') {
+                roomName = data.roomName || roomName;
+                els.roomNameDisplay.textContent = roomName;
+                els.roomPwBadge.style.display = data.roomPassword ? 'inline' : 'none';
+            }
+        }
+
+        let pendingConn = null;
+        function acceptJoin(conn, data) {
+            connections[conn.peer] = { conn, nick: data.nick, color: data.color || '#94a3b8' };
+            log(`歡迎成員: ${data.nick}`, 'success');
+            const fullList = getFullNickList();
+            broadcast({ type: 'NICK_LIST', users: fullList });
+            conn.send({
+                type: 'WELCOME',
+                state: JSON.parse(JSON.stringify(mapData)),
+                users: fullList,
+                roomName, hasPw: !!roomPassword,
+                optAutoMark, optShowMembers
+            });
+            refreshParticipantList();
+        }
+
+        function applySync(data) {
+            const cell = mapData[data.f][data.d];
+            if (data.action === 'pass') {
+                for (let d = 0; d < 4; d++) {
+                    if (mapData[data.f][d].owner === data.owner && d !== data.d) {
+                        mapData[data.f][d].v = 0; mapData[data.f][d].owner = null; mapData[data.f][d].ownerColor = null;
+                        updateDoorUI(data.f, d);
+                    }
+                }
+                cell.v = 1; cell.owner = data.owner; cell.ownerColor = data.color;
+                if (optAutoMark) recalcMaybe(data.f);
+            } else if (data.action === 'unpass') {
+                cell.v = 0; cell.owner = null; cell.ownerColor = null;
+                if (optAutoMark) recalcMaybe(data.f);
+            } else if (data.action === 'error') {
+                if (!cell.errors.includes(data.owner)) {
+                    cell.errors.push(data.owner);
+                }
+                if (optAutoMark) recalcMaybe(data.f);
+            } else if (data.action === 'unerror') {
+                cell.errors = cell.errors.filter(n => n !== data.owner);
+                if (optAutoMark) recalcMaybe(data.f);
+            }
+            updateDoorUI(data.f, data.d);
+        }
+
+        // ===== 可能性計算 =====
+        function getAllPlayers() {
+            const all = [{ nick: myNick, color: myColor }];
+            Object.values(connections).forEach(c => all.push({ nick: c.nick, color: c.color || '#94a3b8' }));
+            return all;
+        }
+        function recalcMaybe(f) {
+            const players = getAllPlayers().map(p => p.nick);
+            for (let d = 0; d < 4; d++) {
+                mapData[f][d].maybe = [];
+            }
+            const passOwners = mapData[f].filter(c => c.v === 1).map(c => c.owner);
+            const remaining = players.filter(p => !passOwners.includes(p));
+            for (let d = 0; d < 4; d++) {
+                const cell = mapData[f][d];
+                if (cell.v === 1) continue;
+                const narrowed = remaining.filter(p => !cell.errors.includes(p));
+                if (narrowed.length > 0 && narrowed.length < remaining.length) {
+                    cell.maybe = narrowed;
+                }
+            }
+            for (let d = 0; d < 4; d++) updateDoorUI(f, d);
+        }
+
+        // ===== 地圖操作 =====
+        function onDoorClick(f, d) {
+            if (!myNick) return alert("請先設定暱稱。");
+            const cell = mapData[f][d];
+            if (cell.v === 1 && cell.owner === myNick) {
+                const msg = { type: 'SYNC', f, d, action: 'unpass', owner: myNick, color: myColor };
+                applySync(msg); syncMsg(msg);
+            } else if (cell.v === 0 && !cell.owner) {
+                const msg = { type: 'SYNC', f, d, action: 'pass', owner: myNick, color: myColor };
+                applySync(msg); syncMsg(msg);
+            } else if (cell.owner && cell.owner !== myNick) {
+                log(`該格已被 ${cell.owner} 標記。`, 'warn');
+            } else if (cell.v === 1 && isHost) {
+                const msg = { type: 'SYNC', f, d, action: 'unpass', owner: cell.owner, color: cell.ownerColor };
+                applySync(msg); syncMsg(msg);
+            }
+        }
+        function onDoorRightClick(f, d) {
+            if (!myNick) return;
+            const cell = mapData[f][d];
+            if (cell.v === 1) return;
+            const alreadyErr = cell.errors.includes(myNick);
+            const errCount = cell.errors.length;
+            if (!alreadyErr && errCount >= 3) return;
+            const action = alreadyErr ? 'unerror' : 'error';
+            const msg = { type: 'SYNC', f, d, action, owner: myNick, color: myColor };
+            applySync(msg); syncMsg(msg);
+        }
+        function syncMsg(msg) {
+            if (isHost) broadcast(msg);
+            else {
+                const hostConn = Object.values(connections).find(c => c.nick === '房主');
+                if (hostConn && hostConn.conn.open) hostConn.conn.send(msg);
+            }
+        }
+
+        // ===== UI 更新 =====
+        function updateDoorUI(f, d) {
+            const el = document.getElementById(`d-${f}-${d}`);
+            if (!el) return;
+            const cell = mapData[f][d];
+            el.className = 'door';
+            const iconEl = el.querySelector('.door-icon');
+            const ownerEl = el.querySelector('.door-owner');
+            const maybeEl = el.querySelector('.maybe-indicators');
+            iconEl.textContent = '';
+            ownerEl.textContent = '';
+            maybeEl.innerHTML = '';
+            el.style.removeProperty('--pass-color');
+
+            if (cell.v === 1) {
+                el.classList.add('state-pass');
+                el.style.setProperty('--pass-color', cell.ownerColor || '#22c55e');
+                el.style.background = `linear-gradient(135deg, ${cell.ownerColor || '#22c55e'}, ${darken(cell.ownerColor || '#22c55e')})`;
+                iconEl.textContent = 'O';
+                ownerEl.textContent = cell.owner;
+            } else if (cell.errors.length > 0) {
+                el.classList.add('state-error');
+                iconEl.textContent = '';
+                el.querySelector('.door-owner').style.fontSize = '9px';
+                ownerEl.textContent = `✗×${cell.errors.length}`;
+                if (cell.maybe && cell.maybe.length > 0 && optAutoMark) {
+                    el.classList.remove('state-error');
+                    el.classList.add('state-maybe');
+                    iconEl.textContent = '?';
+                    ownerEl.textContent = cell.maybe.join('/');
+                }
+            } else if (cell.maybe && cell.maybe.length > 0 && optAutoMark) {
+                el.classList.add('state-maybe');
+                iconEl.textContent = '?';
+                ownerEl.textContent = cell.maybe.join('/');
+            }
+        }
+        function darken(hex) {
+            try {
+                let c = parseInt(hex.slice(1), 16);
+                let r = Math.max(0, (c >> 16) - 40);
+                let g = Math.max(0, ((c >> 8) & 0xff) - 40);
+                let b = Math.max(0, (c & 0xff) - 40);
+                return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+            } catch { return '#1a202c'; }
+        }
+
+        function renderGrid() {
+            const g = els.grid;
+            g.innerHTML = '';
+            for (let f = 0; f < 10; f++) {
+                const row = document.createElement('div');
+                row.className = 'floor-row';
+                const lbl = document.createElement('div');
+                lbl.className = 'floor-label';
+                lbl.textContent = `L${10 - f}`;
+                row.appendChild(lbl);
+                const grid = document.createElement('div');
+                grid.className = 'door-grid';
+                for (let d = 0; d < 4; d++) {
+                    const door = document.createElement('div');
+                    door.className = 'door';
+                    door.id = `d-${f}-${d}`;
+                    door.innerHTML = '<div class="door-icon"></div><div class="door-owner"></div><div class="maybe-indicators"></div>';
+                    let lastTouch = 0;
+                    door.addEventListener('touchstart', e => {
+                        const now = Date.now();
+                        if (now - lastTouch < 350) { e.preventDefault(); onDoorRightClick(f, d); }
+                        lastTouch = now;
+                    }, { passive: false });
+                    door.onclick = () => onDoorClick(f, d);
+                    door.oncontextmenu = e => { e.preventDefault(); onDoorRightClick(f, d); };
+                    grid.appendChild(door);
+                }
+                row.appendChild(grid);
+                g.appendChild(row);
+            }
+        }
+
+        // ===== 成員管理 =====
+        function getFullNickList() {
+            return [
+                { nick: myNick, color: myColor, isHost: true },
+                ...Object.values(connections).map(c => ({ nick: c.nick, color: c.color || '#94a3b8', isHost: false }))
+            ];
+        }
+        function broadcast(msg, exclude = null) {
+            Object.values(connections).forEach(c => {
+                if (c.conn && c.conn.open && c.conn !== exclude) c.conn.send(msg);
+            });
+        }
+        function refreshParticipantList() {
+            renderNameTags(getFullNickList());
+        }
+        function updateParticipantListFromWelcome(users) {
+            renderNameTags(users);
+        }
+        function renderNameTags(tags) {
+            els.pList.innerHTML = '';
+            tags.forEach(t => {
+                const span = document.createElement('span');
+                span.className = 'member-tag';
+                span.style.color = t.color || '#94a3b8';
+                span.style.borderColor = (t.color || '#94a3b8') + '66';
+                span.style.background = (t.color || '#94a3b8') + '22';
+                span.textContent = (t.isHost ? '👑 ' : '👤 ') + t.nick;
+                if (isHost && !t.isHost) {
+                    const kb = document.createElement('button');
+                    kb.className = 'kick-btn';
+                    kb.textContent = '✕';
+                    kb.title = '踢出';
+                    kb.onclick = () => kickPlayer(t.nick);
+                    span.appendChild(kb);
+                }
+                els.pList.appendChild(span);
+            });
+        }
+        function kickPlayer(nick) {
+            if (!confirm(`確定踢出 ${nick}？`)) return;
+            const entry = Object.entries(connections).find(([, v]) => v.nick === nick);
+            if (entry) {
+                const [peerId, { conn }] = entry;
+                conn.send({ type: 'KICK' });
+                setTimeout(() => conn.close(), 300);
+                delete connections[peerId];
+                removeUserMarkers(nick);
+                refreshParticipantList();
+                broadcast({ type: 'NICK_LIST', users: getFullNickList() });
+                log(`已踢出: ${nick}`, 'warn');
+            }
+        }
+        function removeUserMarkers(nick) {
+            for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) {
+                const c = mapData[f][d];
+                if (c.owner === nick) { c.v = 0; c.owner = null; c.ownerColor = null; }
+                c.errors = c.errors.filter(n => n !== nick);
+                if (optAutoMark) recalcMaybe(f);
+                updateDoorUI(f, d);
+            }
+        }
+
+        // ===== 邀請連結 =====
+        function copyInvite() {
+            const url = window.location.origin + window.location.pathname + '#' + fullMyId;
+            navigator.clipboard.writeText(url).then(() => showToast("✅ 邀請連結已複製！"));
+        }
+
+        // ===== 清空 =====
+        function resetAll() {
+            if (!isHost) return;
+            if (!confirm("確定清空所有標記？")) return;
+            clearLocal();
+            broadcast({ type: 'RESET' });
+        }
+        function clearLocal() {
+            for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) {
+                mapData[f][d] = { v: 0, owner: null, ownerColor: null, errors: [], maybe: [] };
+                updateDoorUI(f, d);
+            }
+        }
+
+        // ===== 啟動 =====
+        renderGrid();
+        const initialHash = window.location.hash.substring(1);
+        if (initialHash) {
+            els.joinInput.value = initialHash;
+            log("偵測到房號，請設定暱稱後加入。", 'warn');
+        }
+        log("歡迎使用 Artale_RJPQ_oojump！請先設定暱稱。", 'success');
+    </script>
+</body>
+
+</html>
