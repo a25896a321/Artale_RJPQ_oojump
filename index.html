@@ -850,8 +850,9 @@
     <div id="idle">
         <div class="idle-box">
             <h2>⏱️ 閒置過久</h2>
-            <p>請重新建立房間 or 加入房間：<br>
-                你可能已閒置超過1小時、<br>
+            <p>請重新建立房間 or 加入房間：<br>；
+                房主可能已退出或關閉房間、<br>
+                可能已閒置超過1小時、<br>
                 請檢查您的網路連線、<br>
                 請檢查網路防火牆！</p>
             <button class="btn pri" onclick="location.reload()">🔄 重新啟動</button>
@@ -862,36 +863,18 @@
         <div class="mbox">
             <div class="mtitle">🏠 建立新房間</div>
             <div class="mfield"><label>房間名稱</label><input class="field" id="inp-rname" maxlength="20"
-                    placeholder="輸入房間名...(如：羅15場 77頻 缺1法)" style="width:100%"></div>
+                    placeholder="輸入房間名..." style="width:100%"></div>
             <div class="mfield"><label>房間密碼（選填）</label><input class="field" id="inp-rpw" type="password" maxlength="20"
                     placeholder="留空則不設密碼..." style="width:100%"></div>
             <div class="mfield">
                 <label>格子順序標記</label>
-                <select id="opt-seq" class="field" style="width:100%;margin-bottom:10px;background:#1a1a2e;color:#e2e8f0;">
+                <select id="opt-seq" class="field"
+                    style="width:100%;margin-bottom:10px;background:#1a1a2e;color:#e2e8f0;">
                     <option value="none">不顯示</option>
-                    <option value="1234">由左至右 1234</option>
+                    <option value="1234" selected>由左至右 1234</option>
                     <option value="4321">由左至右 4321</option>
                 </select>
-                <label>房間標籤 (可複選)</label>
-                <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">場次標籤</div>
-                <div class="opts-row" style="margin-bottom:6px;" id="tag-match">
-                    <label class="opt-label"><input type="checkbox" value="30場"> 30場</label>
-                    <label class="opt-label"><input type="checkbox" value="15場"> 15場</label>
-                    <label class="opt-label"><input type="checkbox" value="零散場"> 零散場</label>
-                </div>
-                <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">推薦程度</div>
-                <div class="opts-row" style="margin-bottom:6px;" id="tag-rec">
-                    <label class="opt-label"><input type="checkbox" value="熟練場"> 熟練場</label>
-                    <label class="opt-label"><input type="checkbox" value="新手場"> 新手場</label>
-                    <label class="opt-label"><input type="checkbox" value="友善場"> 友善場</label>
-                    <label class="opt-label"><input type="checkbox" value="私人場"> 私人場</label>
-                </div>
-                <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">任務NPC</div>
-                <div class="opts-row" style="margin-bottom:10px;" id="tag-npc">
-                    <label class="opt-label"><input type="checkbox" value="羅密歐"> 羅密歐</label>
-                    <label class="opt-label"><input type="checkbox" value="茱麗葉"> 茱麗葉</label>
-                    <label class="opt-label"><input type="checkbox" value="羅茱任意"> 羅茱任意</label>
-                </div>
+
                 <label>系統選項</label>
                 <div class="opts-row">
                     <label class="opt-label"><input type="checkbox" class="tcb" id="opt-auto"
@@ -926,7 +909,8 @@
             <div class="mfield">
                 <label>透過房號加入</label>
                 <div class="join-row">
-                    <input class="field" type="text" id="join-id" placeholder="貼上房號 (ID)..." style="font-family:monospace;font-size:12px">
+                    <input class="field" type="text" id="join-id" placeholder="貼上房號 (ID)..."
+                        style="font-family:monospace;font-size:12px">
                     <button class="btn pri" onclick="startJoin()">加入</button>
                 </div>
             </div>
@@ -974,7 +958,8 @@
             <div id="conn-panel">
                 <div style="display:none;gap:8px;" id="init-actions">
                     <button class="btn pri" id="btn-host" style="flex:1" onclick="openCreate()">🏠 建立房間</button>
-                    <button class="btn gld" id="btn-join-modal" style="flex:1" onclick="openM('m-join')">🌍 加入房間</button>
+                    <button class="btn gld" id="btn-join-modal" style="flex:1" onclick="openM('m-join')">🌍
+                        加入房間</button>
                 </div>
             </div>
             <div id="room-status" style="display:none">
@@ -987,7 +972,8 @@
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;margin:6px 0;">
                         <div class="room-id" id="rid-disp" style="flex:1;margin:0;">-</div>
-                        <button class="btn sm gld" style="padding:5px 8px;" onclick="copyId()"><span style="font-size:14px;">📋</span></button>
+                        <button class="btn sm gld" style="padding:5px 8px;" onclick="copyId()"><span
+                                style="font-size:14px;">📋</span></button>
                     </div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap">
                         <button class="btn sm" onclick="editPw()">🔑 編輯密碼</button>
@@ -1011,15 +997,18 @@
         </div>
         <!-- 地圖 -->
         <div class="map-area">
-            <div class="map-title">⬆ 樓梯地圖（L10 → L1）</div>
+            <div class="map-title">⬆ 樓梯地圖（L1 → L10）</div>
             <div id="map-grid"></div>
         </div>
         <!-- 聊天室 -->
         <div class="card" id="chat-sec" style="display:none;margin-bottom:1px;">
             <div class="ctitle">💬 聊天室</div>
-            <div id="chat-msgs" style="height:120px;overflow-y:auto;background:rgba(0,0,0,0.4);border:1px solid #333;border-radius:var(--rsm);padding:8px;font-size:12px;margin-bottom:8px;display:flex;flex-direction:column;gap:4px;"></div>
+            <div id="chat-msgs"
+                style="height:120px;overflow-y:auto;background:rgba(0,0,0,0.4);border:1px solid #333;border-radius:var(--rsm);padding:8px;font-size:12px;margin-bottom:8px;display:flex;flex-direction:column;gap:4px;">
+            </div>
             <div style="display:flex;gap:6px;">
-                <input class="field" type="text" id="chat-inp" placeholder="輸入訊息，Enter發送..." onkeypress="if(event.key==='Enter')sendChat()">
+                <input class="field" type="text" id="chat-inp" placeholder="輸入訊息，Enter發送..."
+                    onkeypress="if(event.key==='Enter')sendChat()">
                 <button class="btn pri" onclick="sendChat()">發送</button>
             </div>
         </div>
@@ -1043,7 +1032,7 @@
     <script>
         // ===== STATE =====
         let peer = null, myNick = "", myColor = "#7c3aed", isHost = false, fullMyId = "";
-        let roomName = "", roomPw = "", optAuto = true, optMembers = true, optSeq = 'none', optChat = false, roomTags = [];
+        let roomName = "", roomPw = "", optAuto = true, optMembers = true, optSeq = '1234', optChat = false;
         let connections = {};
         let pendingConn = null;
         let idleTimer = null;
@@ -1134,10 +1123,6 @@
             optMembers = document.getElementById('opt-members').checked;
             optChat = document.getElementById('opt-chat').checked;
             optSeq = document.getElementById('opt-seq').value;
-            roomTags = [];
-            ['tag-match', 'tag-rec', 'tag-npc'].forEach(id => {
-               document.getElementById(id).querySelectorAll('input:checked').forEach(e => roomTags.push(e.value));
-            });
             closeM('m-create');
             await startHost();
         }
@@ -1217,10 +1202,10 @@
         }
         function sendChat() {
             const inp = document.getElementById('chat-inp'); const v = inp.value.trim();
-            if(!v) return;
-            const msg = { type:'CHAT', nick:myNick, color:myColor, msg:v };
+            if (!v) return;
+            const msg = { type: 'CHAT', nick: myNick, color: myColor, msg: v };
             if (isHost) { broadcast(msg); const el = document.createElement('div'); el.innerHTML = `<b><span style="color:${myColor}">${myNick}</span></b>: ${v}`; const mb = document.getElementById('chat-msgs'); mb.appendChild(el); mb.scrollTop = mb.scrollHeight; }
-            else { const hc = Object.values(connections).find(c=>c.conn&&c.conn.open); if(hc) hc.conn.send({type:'CHAT_FWD', msg}); }
+            else { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'CHAT_FWD', msg }); }
             inp.value = '';
         }
         // ===== JOIN VIA INVITE LINK =====
@@ -1448,7 +1433,7 @@
                 roomName, hasPw: !!roomPw, optAuto, optMembers, optChat, optSeq, hostNick: myNick, hostColor: myColor
             });
             refreshPList();
-            saveLocalRoom(fullMyId, roomName, roomPw, roomTags, (Object.keys(connections).length+1));
+            saveLocalRoom(fullMyId, roomName, roomPw, roomTags, (Object.keys(connections).length + 1));
         }
         // ===== HOST TRANSFER (when host leaves, promote first peer) =====
         function transferHost() {
@@ -1574,10 +1559,10 @@
         function onDoorClick(f, d) {
             if (!myNick) return alert('請先設定暱稱。');
             const c = mapData[f][d];
-            let fp = ['x','x','x','x']; fp[d] = 'o';
-            let sq = ''; if (optSeq==='1234') sq = '｜'+(d+1); else if (optSeq==='4321') sq = '｜'+(4-d);
+            let fp = ['x', 'x', 'x', 'x']; fp[d] = 'o';
+            let sq = ''; if (optSeq === '1234') sq = '｜' + (d + 1); else if (optSeq === '4321') sq = '｜' + (4 - d);
             let s_tag = fp.join('') + sq;
-            
+
             if (c.v === 1 && c.owner === myNick) {
                 const m = { type: 'SYNC', f, d, action: 'unpass', owner: myNick, color: myColor }; applySync(m); syncMsg(m);
                 log(`取消標記正確活路：L${10 - f} - ${s_tag}`, 'warn');
