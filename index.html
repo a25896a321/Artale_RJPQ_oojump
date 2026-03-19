@@ -979,8 +979,8 @@
                                 style="font-size:14px;">📋</span></button>
                     </div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="btn sm" onclick="editPw()">🔑 編輯密碼</button>
-                        <button class="btn sm dng" onclick="rebuildRoom()">🔨 重建房間</button>
+                        <button class="btn sm" id="btn-editpw" onclick="editPw()">🔑 編輯密碼</button>
+                        <button class="btn sm dng" id="btn-rebuild" onclick="rebuildRoom()">🔨 重建房間</button>
                     </div>
                 </div>
             </div>
@@ -1054,6 +1054,7 @@
             btnReset: document.getElementById('btn-reset'), nickInp: document.getElementById('nick-inp'),
             btnSN: document.getElementById('btn-snick'), btnEN: document.getElementById('btn-enick'),
             btnLeave: document.getElementById('btn-leave'), initActs: document.getElementById('init-actions'),
+            btnEditPw: document.getElementById('btn-editpw'), btnRebuild: document.getElementById('btn-rebuild'),
             connPanel: document.getElementById('conn-panel'),
             roomStatus: document.getElementById('room-status'), ridDisp: document.getElementById('rid-disp'),
             rnameDisp: document.getElementById('rname-disp'), rpwBadge: document.getElementById('rpw-badge'),
@@ -1077,8 +1078,13 @@
         async function roomHash(name) {
             const d = new TextEncoder().encode('artale-rjpq-' + (name || '').toLowerCase().trim());
             const buf = await crypto.subtle.digest('SHA-256', d);
-            const h = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-            return 'arjpq' + h.slice(0, 12);
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let str = '';
+            const val = new Uint32Array(buf);
+            for (let i = 0; i < 6; i++) {
+                str += chars[val[i] % chars.length];
+            }
+            return str;
         }
 
         // ===== COLOR =====
@@ -1141,6 +1147,7 @@
                 E.rpwBadge.style.display = roomPw ? 'inline' : 'none';
                 E.btnCopy.style.display = 'inline-flex'; E.btnLeave.style.display = 'inline-flex';
                 E.btnReset.style.display = 'inline-flex';
+                E.btnEditPw.style.display = 'inline-flex'; E.btnRebuild.style.display = 'inline-flex';
                 E.membersSec.style.display = optMembers ? 'block' : 'none';
                 document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
                 for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
@@ -1160,6 +1167,7 @@
                         E.rpwBadge.style.display = roomPw ? 'inline' : 'none';
                         E.btnCopy.style.display = 'inline-flex'; E.btnLeave.style.display = 'inline-flex';
                         E.btnReset.style.display = 'inline-flex';
+                        E.btnEditPw.style.display = 'inline-flex'; E.btnRebuild.style.display = 'inline-flex';
                         E.membersSec.style.display = optMembers ? 'block' : 'none';
                         document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
                         for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
@@ -1383,6 +1391,7 @@
                 E.ridDisp.textContent = conn.peer; E.rnameDisp.textContent = roomName;
                 E.rpwBadge.style.display = data.hasPw ? 'inline' : 'none';
                 E.btnLeave.style.display = 'inline-flex';
+                E.btnEditPw.style.display = 'none'; E.btnRebuild.style.display = 'none';
                 E.membersSec.style.display = optMembers ? 'block' : 'none';
                 document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
                 document.getElementById('chat-msgs').innerHTML = '';
@@ -1425,6 +1434,7 @@
                 isHost = true;
                 E.btnReset.style.display = 'inline-flex';
                 E.btnCopy.style.display = 'inline-flex';
+                E.btnEditPw.style.display = 'inline-flex'; E.btnRebuild.style.display = 'inline-flex';
                 // Rebuild connections from remaining peers info
                 log(`您已成為新房主！`, 'ok');
                 toast('👑 您已成為新房主');
