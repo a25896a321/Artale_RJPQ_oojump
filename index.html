@@ -1362,7 +1362,9 @@
                 if (data.password !== roomPw) { conn.send({ type: 'REJECT', reason: '密碼錯誤。' }); return; }
                 acceptJoin(conn, { nick: conn._pendingNick || data.nick, color: conn._pendingColor || data.color });
             } else if (data.type === 'NEED_PW') {
-                setLoad(false); openM('m-joinpw');
+                setLoad(false); 
+                closeM('m-join');
+                openM('m-joinpw');
                 document.getElementById('btn-cfm-pw').onclick = () => {
                     const pw = document.getElementById('inp-joinpw').value; closeM('m-joinpw');
                     conn.send({ type: 'JOIN_PW', nick: myNick, color: myColor, password: pw });
