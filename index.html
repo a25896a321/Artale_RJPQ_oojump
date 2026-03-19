@@ -911,11 +911,11 @@
                 <div class="join-row">
                     <input class="field" type="text" id="join-id" placeholder="貼上房號 (ID)..."
                         style="font-family:monospace;font-size:12px">
-                    <button class="btn pri" onclick="startJoin()">加入</button>
+                    <button class="btn pri" id="btn-join" onclick="startJoin()">加入</button>
                 </div>
             </div>
             <div class="mfield" style="margin-top:10px">
-                <label>透過房間名稱搜尋</label>
+                <label>透過房間名稱搜尋（完全相同）</label>
                 <div class="join-row">
                     <input class="field" type="text" id="srch-name" placeholder="輸入房間名稱搜尋...">
                     <button class="btn pri" onclick="searchRoom()">搜尋</button>
@@ -1175,9 +1175,9 @@
             isHost = false; fullMyId = ''; roomName = ''; roomPw = ''; connections = {};
             clearLocal();
             E.initActs.style.display = 'flex';
-            E.connPanel.style.display = 'block'; E.roomStatus.style.display = 'none';
             E.btnLeave.style.display = 'none'; E.btnCopy.style.display = 'none';
-            E.btnHost.disabled = false; E.btnJoin.disabled = false;
+            if (E.btnHost) E.btnHost.disabled = false; 
+            if (E.btnJoin) E.btnJoin.disabled = false;
             E.btnReset.style.display = 'none'; E.plist.innerHTML = '';
             if (!silent) log('連線已中斷', 'warn');
             clearTimeout(idleTimer);
@@ -1252,7 +1252,6 @@
                         item.innerHTML = `<span>🏠 <b>${data.roomName || name}</b><br><span style="font-size:10px;color:var(--muted)">${data.hasPw ? '🔐 需要密碼' : '🔓 無密碼'}</span></span>`;
                         const joinBtn = document.createElement('button'); joinBtn.className = 'btn sm pri'; joinBtn.textContent = '加入';
                         joinBtn.onclick = () => {
-                            probeConn.close();
                             E.joinId.value = tid;
                             startJoinById(tid, name);
                         };
@@ -1284,6 +1283,7 @@
             startJoinById(tid);
         }
         function startJoinById(tid, nameHint = '') {
+            if (peer && !isHost) { peer.destroy(); peer = null; }
             initPeer(() => {
                 setLoad(true, '正在接入...');
                 const conn = peer.connect(tid, { reliable: true });
