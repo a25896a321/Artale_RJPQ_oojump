@@ -1073,6 +1073,7 @@
         let peer = null, myNick = "", myColor = BASE_COLORS[0], myTxtColor = "#ffffff", isHost = false, fullMyId = "";
         let roomName = "", roomPw = "", optAuto = true, optMembers = true, optSeq = '1234', optChat = false;
         let connections = {};
+        let allNickList = []; // Full player list kept in sync via WELCOME/NICK_LIST (used by guests for recalcMaybe)
         let pendingConn = null;
         let idleTimer = null;
         let hasHadMembers = false;
@@ -1207,7 +1208,7 @@
         }
         function leaveRoom(silent = false) {
             if (peer) { try { peer.destroy(); } catch (e) { } peer = null; }
-            isHost = false; fullMyId = ''; roomName = ''; roomPw = ''; connections = {};
+            isHost = false; fullMyId = ''; roomName = ''; roomPw = ''; connections = {}; allNickList = [];
             clearLocal();
             E.initActs.style.display = 'flex';
             E.btnLeave.style.display = 'none'; E.btnCopy.style.display = 'none';
@@ -1474,17 +1475,12 @@
                     }
                 }
                 c.v = 1; c.owner = data.owner; c.ownerColor = data.color; c.ownerTextColor = data.textColor || '#ffffff';
-                // Auto-mark: since this owner picked this cell, mark all other cells as owner's error
-                // (they can't be in other cells on this floor)
+                // Auto-mark: since owner picked this cell, add them to errors on all other cells
+                // (every client handles this locally — no need to broadcast explicit auto-error SYNCs)
                 if (optAuto) {
                     for (let d = 0; d < 4; d++) {
                         if (d !== data.d && !mapData[data.f][d].errors.includes(data.owner)) {
                             mapData[data.f][d].errors.push(data.owner);
-                            // Broadcast this auto-error if we are host
-                            if (isHost) {
-                                const autoMsg = { type: 'SYNC', f: data.f, d, action: 'error', owner: data.owner, color: data.color, auto: true };
-                                broadcast(autoMsg);
-                            }
                         }
                     }
                 }
@@ -1495,10 +1491,6 @@
                     for (let d = 0; d < 4; d++) {
                         if (d !== data.d) {
                             mapData[data.f][d].errors = mapData[data.f][d].errors.filter(n => n !== data.owner);
-                            if (isHost) {
-                                const autoMsg = { type: 'SYNC', f: data.f, d, action: 'unerror', owner: data.owner, color: data.color, auto: true };
-                                broadcast(autoMsg);
-                            }
                         }
                     }
                 }
@@ -1511,17 +1503,28 @@
             if (optAuto) recalcMaybe(data.f);
         }
         function syncMsg(msg) {
-            if (isHost) broadcast(msg);
-            else {
+            if (isHost) {
+                broadcast(msg);
+                // Broadcast host's own computed maybe state so guests stay in sync
+                if (optAuto && msg.type === 'SYNC') {
+                    const f = msg.f;
+                    broadcast({ type: 'MAYBE_STATE', f, state: mapData[f].map(c => ({ maybe: c.maybe, certain: c.certain })) });
+                }
+            } else {
                 const hc = Object.values(connections).find(c => c.conn && c.conn.open);
                 if (hc) hc.conn.send(msg);
             }
         }
 
-        // ===== ALL PLAYERS (real nicks, no "房主") =====
+        // ===== ALL PLAYERS =====
         function getPlayers() {
+            // Guests: use the authoritative full list stored from WELCOME/NICK_LIST broadcasts
+            if (!isHost && allNickList.length > 0) {
+                return allNickList.map(u => ({ nick: u.nick, color: u.color || '#94a3b8' }));
+            }
+            // Host (or before any list arrives): build from live connections
             const all = [{ nick: myNick, color: myColor }];
-            Object.values(connections).forEach(c => { if (c.nick && c.nick !== '房主') all.push({ nick: c.nick, color: c.color || '#94a3b8' }); else if (c.nick === '房主') all.push({ nick: c.nick, color: c.color || '#f59e0b' }); });
+            Object.values(connections).forEach(c => { if (c.nick) all.push({ nick: c.nick, color: c.color || '#94a3b8' }); });
             return all;
         }
 
@@ -1549,15 +1552,16 @@
                 return;
             }
 
-            // Only compute if there are actual error marks on this floor
-            const anyErrors = activePlayers.some(p => unpassedIdx.some(d => mapData[f][d].errors.includes(p)));
-            if (!anyErrors) {
+            // Show hints when: someone has passed on this floor (narrows candidates),
+            // OR at least one active player has an explicit error somewhere
+            const hasPassedPlayers = passOwners.size > 0;
+            const anyActiveErrors = activePlayers.some(p => unpassedIdx.some(d => mapData[f][d].errors.includes(p)));
+            if (!hasPassedPlayers && !anyActiveErrors) {
                 for (let d = 0; d < 4; d++) updateDoor(f, d);
                 return;
             }
 
-            // Layer 1: Build possibility matrix based on error marks
-            // possible[p][d] = true means player p could be in door d
+            // Layer 1: Build possibility matrix — possible[p][d] = true means p could be in door d
             const possible = {};
             for (const p of activePlayers) {
                 possible[p] = {};
@@ -1571,7 +1575,7 @@
             while (changed) {
                 changed = false;
 
-                // If a cell has only 1 possible player → that player is certain here
+                // Cell certainty: only 1 possible player → that player is certain here
                 // → eliminate that player from all other un-passed cells
                 for (const d of unpassedIdx) {
                     const possiblePlayers = activePlayers.filter(p => possible[p][d]);
@@ -1586,7 +1590,7 @@
                     }
                 }
 
-                // If a player can only go to 1 cell → that cell is certain for them
+                // Player certainty: player can only go to 1 cell → that cell is certain for them
                 // → eliminate all other players from that cell
                 for (const p of activePlayers) {
                     const possibleCells = unpassedIdx.filter(d => possible[p][d]);
@@ -1602,12 +1606,11 @@
                 }
             }
 
-            // Store results: only mark cells where some player was eliminated (has useful info)
+            // Store results for every unpassed cell that has at least one possible active player
             for (const d of unpassedIdx) {
                 const cell = mapData[f][d];
                 const possiblePlayers = activePlayers.filter(p => possible[p][d]);
-                const someEliminated = activePlayers.some(p => !possible[p][d]);
-                if (possiblePlayers.length > 0 && someEliminated) {
+                if (possiblePlayers.length > 0) {
                     cell.maybe = possiblePlayers;
                     cell.certain = possiblePlayers.length === 1;
                 }
@@ -1727,8 +1730,8 @@
             return [{ nick: myNick, color: myColor, isHost: isHost }, ...Object.values(connections).map(c => ({ nick: c.nick, color: c.color || '#94a3b8', isHost: false }))];
         }
         function broadcast(msg, exclude = null) { Object.values(connections).forEach(c => { if (c.conn && c.conn.open && c.conn !== exclude) c.conn.send(msg); }); }
-        function refreshPList() { renderTags(getNickList()); }
-        function updatePListFromWelcome(users) { renderTags(users); }
+        function refreshPList() { const list = getNickList(); allNickList = list.slice(); renderTags(list); }
+        function updatePListFromWelcome(users) { if (users) allNickList = users.slice(); renderTags(allNickList); }
         function renderTags(tags) {
             E.plist.innerHTML = '';
             tags.forEach(t => {
