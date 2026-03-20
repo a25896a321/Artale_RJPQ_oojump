@@ -837,7 +837,7 @@
             <div class="mtitle">🔗 加入房間</div>
             <div class="mfield"><label>請輸入您的暱稱</label><input class="field" id="inv-nick" maxlength="10"
                     placeholder="輸入暱稱..." style="width:100%"></div>
-            <div class="mfield"><label>顏色</label><input type="color" id="inv-color" value="#7c3aed"
+            <div class="mfield"><label>選顏色(代表色)</label><input type="color" id="inv-color" value="#7c3aed"
                     style="width:100%;height:36px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer">
             </div>
             <div class="mbtns">
@@ -1138,7 +1138,7 @@
         async function startHost() {
             const customId = await roomHash(roomName);
             setLoad(true, '建立 P2P 網關...');
-            peer = new Peer(customId, { debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] } });
+            peer = new Peer(customId, { debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }] } });
             peer.on('open', id => {
                 fullMyId = id; isHost = true;
                 window.location.hash = fullMyId;
@@ -1158,7 +1158,7 @@
                 setLoad(false); log(`網關錯誤: ${err.type}`, 'error');
                 if (err.type === 'unavailable-id') {
                     // fallback: try random ID
-                    peer = new Peer({ debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
+                    peer = new Peer({ debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }] } });
                     peer.on('open', id => {
                         fullMyId = id; isHost = true;
                         window.location.hash = fullMyId;
@@ -1179,12 +1179,12 @@
             });
         }
         function leaveRoom(silent = false) {
-            if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
+            if (peer) { try { peer.destroy(); } catch (e) { } peer = null; }
             isHost = false; fullMyId = ''; roomName = ''; roomPw = ''; connections = {};
             clearLocal();
             E.initActs.style.display = 'flex';
             E.btnLeave.style.display = 'none'; E.btnCopy.style.display = 'none';
-            if (E.btnHost) E.btnHost.disabled = false; 
+            if (E.btnHost) E.btnHost.disabled = false;
             if (E.btnJoin) E.btnJoin.disabled = false;
             E.btnReset.style.display = 'none'; E.plist.innerHTML = '';
             if (!silent) log('連線已中斷', 'warn');
@@ -1280,7 +1280,7 @@
             if (peer && peer.open) { return cb(); }
             if (peer) { peer.destroy(); peer = null; }
             setLoad(true, '建立 P2P 連線...');
-            peer = new Peer({ debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] } });
+            peer = new Peer({ debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }] } });
             peer.on('open', () => { setLoad(false); cb(); });
             peer.on('connection', conn => setupConn(conn));
             peer.on('error', err => { setLoad(false); log(`連線錯誤: ${err.type}`, 'error'); if (err.type === 'peer-unavailable') alert('找不到房號。'); });
@@ -1294,7 +1294,7 @@
         }
         function startJoinById(tid, nameHint = '') {
             if (peer && !isHost) {
-                try { peer.destroy(); } catch(e){}
+                try { peer.destroy(); } catch (e) { }
                 peer = null;
                 setTimeout(() => doJoin(tid, nameHint), 600);
             } else {
@@ -1370,7 +1370,7 @@
                 if (data.password !== roomPw) { conn.send({ type: 'REJECT', reason: '密碼錯誤。' }); return; }
                 acceptJoin(conn, { nick: conn._pendingNick || data.nick, color: conn._pendingColor || data.color });
             } else if (data.type === 'NEED_PW') {
-                setLoad(false); 
+                setLoad(false);
                 closeM('m-join');
                 openM('m-joinpw');
                 document.getElementById('btn-cfm-pw').onclick = () => {
