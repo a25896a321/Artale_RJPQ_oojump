@@ -961,13 +961,15 @@
         <div class="card">
             <div class="ctitle">玩家設定</div>
             <div style="display:flex;gap:16px;margin-bottom:12px;">
-                <div style="flex:1;">
+                <div style="flex:1;position:relative;">
                     <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">選擇代表色</span>
-                    <input type="color" id="col-inp" style="width:100%;height:32px;padding:0;border:none;background:transparent;cursor:pointer;" oninput="onColor(this.value)">
+                    <div id="col-swatch" style="width:100%;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;" onclick="document.getElementById('col-inp').click()"></div>
+                    <input type="color" id="col-inp" style="opacity:0;position:absolute;width:1px;height:1px;left:0;bottom:0;pointer-events:none;" oninput="onColor(this.value)">
                 </div>
-                <div style="flex:1;">
+                <div style="flex:1;position:relative;">
                     <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">選擇字體色</span>
-                    <input type="color" id="txt-inp" style="width:100%;height:32px;padding:0;border:none;background:transparent;cursor:pointer;" value="#ffffff" oninput="onTxtColor(this.value)">
+                    <div id="txt-swatch" style="width:100%;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;" onclick="document.getElementById('txt-inp').click()"></div>
+                    <input type="color" id="txt-inp" style="opacity:0;position:absolute;width:1px;height:1px;left:0;bottom:0;pointer-events:none;" value="#ffffff" oninput="onTxtColor(this.value)">
                 </div>
             </div>
             <div class="nick-row">
@@ -1078,8 +1080,8 @@
         const IDLE_MS = 60 * 60 * 1000;
         let mapData = Array(10).fill(null).map(() => Array(4).fill(null).map(() => ({ v: 0, owner: null, ownerColor: null, ownerTextColor: null, errors: [], maybe: [], certain: false })));
 
-        document.getElementById('col-inp').value = myColor;
-        document.getElementById('txt-inp').value = myTxtColor;
+        document.getElementById('col-inp').value = myColor; document.getElementById('col-swatch').style.background = myColor;
+        document.getElementById('txt-inp').value = myTxtColor; document.getElementById('txt-swatch').style.background = myTxtColor;
 
         // ===== DOM =====
         const E = {
@@ -1118,8 +1120,8 @@
         }
 
         // ===== COLOR =====
-        function onColor(v) { myColor = v; document.getElementById('col-inp').value = v; if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); refreshPList(); } else if (peer) { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); } }
-        function onTxtColor(v) { myTxtColor = v; document.getElementById('txt-inp').value = v; if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); refreshPList(); } else if (peer) { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); } }
+        function onColor(v) { myColor = v; document.getElementById('col-inp').value = v; document.getElementById('col-swatch').style.background = v; if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); refreshPList(); } else if (peer) { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); } }
+        function onTxtColor(v) { myTxtColor = v; document.getElementById('txt-inp').value = v; document.getElementById('txt-swatch').style.background = v; if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); refreshPList(); } else if (peer) { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); } }
 
         function saveNick() {
             let v = E.nickInp.value.trim();
@@ -1252,7 +1254,7 @@
             // Apply nick
             myNick = nick;
             E.nickInp.value = myNick; E.nickInp.disabled = true; E.nickInp.style.opacity = '.7';
-            document.getElementById('col-inp').value = myColor;
+            document.getElementById('col-inp').value = myColor; document.getElementById('col-swatch').style.background = myColor;
             E.btnSN.style.display = 'none'; E.btnEN.style.display = 'inline-flex';
             E.initActs.style.display = 'flex';
             closeM('m-invite');
@@ -1403,8 +1405,8 @@
             } else if (data.type === 'WELCOME') {
                 setLoad(false); isHost = false;
                 connections[conn.peer] = { conn, nick: data.hostNick || '房主', color: data.hostColor || '#f59e0b', textColor: data.hostTextColor || '#ffffff' };
-                myColor = data.assignedColor || myColor; document.getElementById('col-inp').value = myColor;
-                myTxtColor = data.assignedTextColor || myTxtColor; document.getElementById('txt-inp').value = myTxtColor;
+                myColor = data.assignedColor || myColor; document.getElementById('col-inp').value = myColor; document.getElementById('col-swatch').style.background = myColor;
+                myTxtColor = data.assignedTextColor || myTxtColor; document.getElementById('txt-inp').value = myTxtColor; document.getElementById('txt-swatch').style.background = myTxtColor;
                 mapData = JSON.parse(JSON.stringify(data.state));
                 roomName = data.roomName || ''; optAuto = data.optAuto !== false; optMembers = data.optMembers !== false;
                 optSeq = data.optSeq || 'none'; optChat = data.optChat || false;
