@@ -960,23 +960,18 @@
         <!-- 玩家設定 -->
         <div class="card">
             <div class="ctitle">玩家設定</div>
-            <div class="nick-row">
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="font-size:12px;color:var(--text)">代表色</span>
-                    <input type="color" id="col-inp"
-                        style="width:32px;height:32px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;"
-                        oninput="onColor(this.value)">
-                    <span style="font-size:16px;cursor:pointer;" title="自訂顏色"
-                        onclick="document.getElementById('col-inp').click()">🩸</span>
-                    
-                    <span style="font-size:12px;color:var(--text);margin-left:4px;">文字色</span>
-                    <input type="color" id="txt-inp"
-                        style="width:32px;height:32px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;"
-                        value="#ffffff" oninput="onTxtColor(this.value)">
-                    <span style="font-size:16px;cursor:pointer;" title="自訂地圖標記文字色"
-                        onclick="document.getElementById('txt-inp').click()">🅰️</span>
+            <div style="display:flex;gap:16px;margin-bottom:12px;">
+                <div style="flex:1;">
+                    <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">選擇代表色</span>
+                    <input type="color" id="col-inp" style="width:100%;height:32px;padding:0;border:none;background:transparent;cursor:pointer;" oninput="onColor(this.value)">
                 </div>
-                <input class="field" type="text" id="nick-inp" maxlength="10" placeholder="輸入暱稱 (中英數)...">
+                <div style="flex:1;">
+                    <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">選擇字體色</span>
+                    <input type="color" id="txt-inp" style="width:100%;height:32px;padding:0;border:none;background:transparent;cursor:pointer;" value="#ffffff" oninput="onTxtColor(this.value)">
+                </div>
+            </div>
+            <div class="nick-row">
+                <input class="field" type="text" id="nick-inp" maxlength="10" placeholder="輸入暱稱 (中英數)..." style="flex:1;">
             </div>
             <div class="btn-row">
                 <button class="btn pri" id="btn-snick" onclick="saveNick()">✅ 確定暱稱</button>
@@ -1032,7 +1027,7 @@
         <div class="map-area fz-md" id="map-area-box">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="map-title" style="margin-bottom:0;">⬆ 樓梯地圖（L1 → L10）</div>
-                <select id="fz-sel" class="field" style="min-width:auto;width:auto;padding:2px 6px;font-size:11px;"
+                <select id="fz-sel" class="field" style="min-width:auto;width:auto;padding:2px 6px;font-size:11px;background-color:#1a202c;color:#e2e8f0;"
                     onchange="changeMapFz(this.value)">
                     <option value="fz-sm">小字</option>
                     <option value="fz-md" selected>中字</option>
@@ -1128,7 +1123,7 @@
 
         function saveNick() {
             let v = E.nickInp.value.trim();
-            if (!v) v = '冒險者' + Math.floor(1000 + Math.random() * 9000);
+            if (!v) v = '無名' + Math.floor(1000 + Math.random() * 9000);
             if (!/^[a-zA-Z0-9\u4e00-\u9fa5]{1,10}$/.test(v)) return alert('暱稱請使用 1-10 位英數或中文字。');
             myNick = v; E.nickInp.value = myNick; E.nickInp.disabled = true; E.nickInp.style.opacity = '.7';
             E.btnSN.style.display = 'none'; E.btnEN.style.display = 'inline-flex';
