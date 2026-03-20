@@ -474,8 +474,9 @@
             cursor: pointer;
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             align-items: center;
+            padding-top: 6px;
             transition: var(--tr);
             position: relative;
             overflow: hidden;
@@ -563,12 +564,29 @@
         }
 
         /* Font Size Options */
-        .map-area.fz-sm .d-icon { font-size: 11px; }
-        .map-area.fz-sm .d-owner { font-size: 8px; }
-        .map-area.fz-md .d-icon { font-size: 15px; }
-        .map-area.fz-md .d-owner { font-size: 10px; }
-        .map-area.fz-lg .d-icon { font-size: 20px; }
-        .map-area.fz-lg .d-owner { font-size: 12px; }
+        .map-area.fz-sm .d-icon {
+            font-size: 11px;
+        }
+
+        .map-area.fz-sm .d-owner {
+            font-size: 8px;
+        }
+
+        .map-area.fz-md .d-icon {
+            font-size: 15px;
+        }
+
+        .map-area.fz-md .d-owner {
+            font-size: 10px;
+        }
+
+        .map-area.fz-lg .d-icon {
+            font-size: 20px;
+        }
+
+        .map-area.fz-lg .d-owner {
+            font-size: 12px;
+        }
 
         .d-seq {
             position: absolute;
@@ -845,12 +863,6 @@
             <div class="mtitle">🔗 加入房間</div>
             <div class="mfield"><label>請輸入您的暱稱</label><input class="field" id="inv-nick" maxlength="10"
                     placeholder="輸入暱稱..." style="width:100%"></div>
-            <div class="mfield"><label>選顏色(代表色)</label>
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <input type="color" id="inv-color" style="width:36px;height:36px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;flex-shrink:0;">
-                    <span style="font-size:12px;color:var(--muted)">自訂專屬顏色，可點選調色盤或滴管</span>
-                </div>
-            </div>
             <div class="mbtns">
                 <button class="btn"
                     onclick="closeM('m-invite');history.replaceState(null,document.title,window.location.pathname)">取消</button>
@@ -951,8 +963,18 @@
             <div class="nick-row">
                 <div style="display:flex;align-items:center;gap:6px;">
                     <span style="font-size:12px;color:var(--text)">代表色</span>
-                    <input type="color" id="col-inp" style="width:32px;height:32px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;" oninput="onColor(this.value)">
-                    <span style="font-size:16px;cursor:pointer;" title="自訂顏色" onclick="document.getElementById('col-inp').click()">🎨</span>
+                    <input type="color" id="col-inp"
+                        style="width:32px;height:32px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;"
+                        oninput="onColor(this.value)">
+                    <span style="font-size:16px;cursor:pointer;" title="自訂顏色"
+                        onclick="document.getElementById('col-inp').click()">🩸</span>
+                    
+                    <span style="font-size:12px;color:var(--text);margin-left:4px;">文字色</span>
+                    <input type="color" id="txt-inp"
+                        style="width:32px;height:32px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;"
+                        value="#ffffff" oninput="onTxtColor(this.value)">
+                    <span style="font-size:16px;cursor:pointer;" title="自訂地圖標記文字色"
+                        onclick="document.getElementById('txt-inp').click()">🅰️</span>
                 </div>
                 <input class="field" type="text" id="nick-inp" maxlength="10" placeholder="輸入暱稱 (中英數)...">
             </div>
@@ -1010,7 +1032,8 @@
         <div class="map-area fz-md" id="map-area-box">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="map-title" style="margin-bottom:0;">⬆ 樓梯地圖（L1 → L10）</div>
-                <select id="fz-sel" class="field" style="min-width:auto;width:auto;padding:2px 6px;font-size:11px;" onchange="changeMapFz(this.value)">
+                <select id="fz-sel" class="field" style="min-width:auto;width:auto;padding:2px 6px;font-size:11px;"
+                    onchange="changeMapFz(this.value)">
                     <option value="fz-sm">小字</option>
                     <option value="fz-md" selected>中字</option>
                     <option value="fz-lg">大字</option>
@@ -1050,7 +1073,7 @@
     <script>
         // ===== STATE =====
         const BASE_COLORS = ['#c084fc', '#fef08a', '#bbf7d0', '#bfdbfe'];
-        let peer = null, myNick = "", myColor = BASE_COLORS[0], isHost = false, fullMyId = "";
+        let peer = null, myNick = "", myColor = BASE_COLORS[0], myTxtColor = "#ffffff", isHost = false, fullMyId = "";
         let roomName = "", roomPw = "", optAuto = true, optMembers = true, optSeq = '1234', optChat = false;
         let connections = {};
         let pendingConn = null;
@@ -1058,9 +1081,10 @@
         let hasHadMembers = false;
         let inviteTargetId = ''; // store target peer ID from invite link
         const IDLE_MS = 60 * 60 * 1000;
-        let mapData = Array(10).fill(null).map(() => Array(4).fill(null).map(() => ({ v: 0, owner: null, ownerColor: null, errors: [], maybe: [], certain: false })));
+        let mapData = Array(10).fill(null).map(() => Array(4).fill(null).map(() => ({ v: 0, owner: null, ownerColor: null, ownerTextColor: null, errors: [], maybe: [], certain: false })));
 
         document.getElementById('col-inp').value = myColor;
+        document.getElementById('txt-inp').value = myTxtColor;
 
         // ===== DOM =====
         const E = {
@@ -1099,7 +1123,8 @@
         }
 
         // ===== COLOR =====
-        function onColor(v) { myColor = v; document.getElementById('col-inp').value = v; if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor }); refreshPList(); } else if (peer) { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor }); } }
+        function onColor(v) { myColor = v; document.getElementById('col-inp').value = v; if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); refreshPList(); } else if (peer) { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); } }
+        function onTxtColor(v) { myTxtColor = v; document.getElementById('txt-inp').value = v; if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); refreshPList(); } else if (peer) { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); } }
 
         function saveNick() {
             let v = E.nickInp.value.trim();
@@ -1109,11 +1134,11 @@
             E.btnSN.style.display = 'none'; E.btnEN.style.display = 'inline-flex';
             if (!peer) {
                 E.initActs.style.display = 'flex';
-                log(`暱稱設定：${myNick}`, 'ok'); 
+                log(`暱稱設定：${myNick}`, 'ok');
             } else {
                 toast(`✅ 暱稱已更改為 ${myNick}`);
                 log(`暱稱已更新為 ${myNick}`, 'ok');
-                if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor }); refreshPList(); } else { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor }); E.plist.innerHTML=''; refreshPList(); }
+                if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); refreshPList(); } else { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor, textColor: myTxtColor }); E.plist.innerHTML = ''; refreshPList(); }
             }
         }
         function editNick() {
@@ -1227,13 +1252,11 @@
         // ===== JOIN VIA INVITE LINK =====
         function joinViaInvite() {
             const nick = document.getElementById('inv-nick').value.trim();
-            const color = document.getElementById('inv-color').value;
             if (!nick) return alert('請輸入暱稱。');
             if (!/^[a-zA-Z0-9\u4e00-\u9fa5]{1,10}$/.test(nick)) return alert('暱稱請使用 1-10 位英數或中文字。');
-            // Apply nick/color
-            myNick = nick; myColor = color;
+            // Apply nick
+            myNick = nick;
             E.nickInp.value = myNick; E.nickInp.disabled = true; E.nickInp.style.opacity = '.7';
-            document.getElementById('swatch').style.background = myColor;
             document.getElementById('col-inp').value = myColor;
             E.btnSN.style.display = 'none'; E.btnEN.style.display = 'inline-flex';
             E.initActs.style.display = 'flex';
@@ -1311,7 +1334,7 @@
                 setLoad(true, '正在接入...');
                 const conn = peer.connect(tid, { reliable: true });
                 setupConn(conn);
-                conn.on('open', () => { log('已連接房主，申請加入...', 'info'); conn.send({ type: 'JOIN', nick: myNick, color: myColor }); });
+                conn.on('open', () => { log('已連接房主，申請加入...', 'info'); conn.send({ type: 'JOIN', nick: myNick, color: myColor, textColor: myTxtColor }); });
                 setTimeout(() => { if (E.load.style.display === 'flex' && !Object.values(connections).length) { setLoad(false); log('連線申請超時，請確認房號是否正確或是重試。', 'error'); } }, 6000);
             });
         }
@@ -1368,24 +1391,25 @@
                 if (Object.values(connections).length >= 3) { conn.send({ type: 'REJECT', reason: '房間已滿（最多4人）。' }); setTimeout(() => conn.close(), 500); return; }
                 const isDup = Object.values(connections).some(v => v.nick === data.nick) || myNick === data.nick;
                 if (isDup) { conn.send({ type: 'REJECT', reason: `暱稱「${data.nick}」已有人使用。` }); setTimeout(() => conn.close(), 500); return; }
-                if (roomPw && data.password !== roomPw) { pendingConn = conn; conn._pendingNick = data.nick; conn._pendingColor = data.color; conn.send({ type: 'NEED_PW' }); return; }
+                if (roomPw && data.password !== roomPw) { pendingConn = conn; conn._pendingNick = data.nick; conn._pendingColor = data.color; conn._pendingTextColor = data.textColor; conn.send({ type: 'NEED_PW' }); return; }
                 acceptJoin(conn, data);
             } else if (data.type === 'JOIN_PW') {
                 if (!isHost) return;
                 if (data.password !== roomPw) { conn.send({ type: 'REJECT', reason: '密碼錯誤。' }); return; }
-                acceptJoin(conn, { nick: conn._pendingNick || data.nick, color: conn._pendingColor || data.color });
+                acceptJoin(conn, { nick: conn._pendingNick || data.nick, color: conn._pendingColor || data.color, textColor: conn._pendingTextColor || data.textColor });
             } else if (data.type === 'NEED_PW') {
                 setLoad(false);
                 closeM('m-join');
                 openM('m-joinpw');
                 document.getElementById('btn-cfm-pw').onclick = () => {
                     const pw = document.getElementById('inp-joinpw').value; closeM('m-joinpw');
-                    conn.send({ type: 'JOIN_PW', nick: myNick, color: myColor, password: pw });
+                    conn.send({ type: 'JOIN_PW', nick: myNick, color: myColor, textColor: myTxtColor, password: pw });
                 };
             } else if (data.type === 'WELCOME') {
                 setLoad(false); isHost = false;
-                connections[conn.peer] = { conn, nick: data.hostNick || '房主', color: data.hostColor || '#f59e0b' };
+                connections[conn.peer] = { conn, nick: data.hostNick || '房主', color: data.hostColor || '#f59e0b', textColor: data.hostTextColor || '#ffffff' };
                 myColor = data.assignedColor || myColor; document.getElementById('col-inp').value = myColor;
+                myTxtColor = data.assignedTextColor || myTxtColor; document.getElementById('txt-inp').value = myTxtColor;
                 mapData = JSON.parse(JSON.stringify(data.state));
                 roomName = data.roomName || ''; optAuto = data.optAuto !== false; optMembers = data.optMembers !== false;
                 optSeq = data.optSeq || 'none'; optChat = data.optChat || false;
@@ -1457,7 +1481,7 @@
             const currentColors = Object.values(connections).map(c => c.color);
             currentColors.push(myColor); // add host color
             let nextColor = BASE_COLORS.find(c => !currentColors.includes(c)) || data.color || '#94a3b8';
-            connections[conn.peer] = { conn, nick: data.nick, color: nextColor };
+            connections[conn.peer] = { conn, nick: data.nick, color: nextColor, textColor: data.textColor || '#ffffff' };
             log(`歡迎成員: ${data.nick}`, 'ok');
             hasHadMembers = true;
             // Recalc maybe before sending state, so new member gets up-to-date state
@@ -1465,7 +1489,7 @@
             const list = getNickList(); broadcast({ type: 'NICK_LIST', users: list });
             conn.send({
                 type: 'WELCOME', state: JSON.parse(JSON.stringify(mapData)), users: list,
-                roomName, hasPw: !!roomPw, optAuto, optMembers, optChat, optSeq, hostNick: myNick, hostColor: myColor, assignedColor: nextColor
+                roomName, hasPw: !!roomPw, optAuto, optMembers, optChat, optSeq, hostNick: myNick, hostColor: myColor, hostTextColor: myTxtColor, assignedColor: nextColor, assignedTextColor: data.textColor || '#ffffff'
             });
             refreshPList();
             saveLocalRoom(fullMyId, roomName, roomPw, roomTags, (Object.keys(connections).length + 1));
@@ -1486,11 +1510,11 @@
                 // Clear previous pass for this owner on this floor
                 for (let d = 0; d < 4; d++) {
                     if (mapData[data.f][d].owner === data.owner && d !== data.d) {
-                        mapData[data.f][d].v = 0; mapData[data.f][d].owner = null; mapData[data.f][d].ownerColor = null;
+                        mapData[data.f][d].v = 0; mapData[data.f][d].owner = null; mapData[data.f][d].ownerColor = null; mapData[data.f][d].ownerTextColor = null;
                         updateDoor(data.f, d);
                     }
                 }
-                c.v = 1; c.owner = data.owner; c.ownerColor = data.color;
+                c.v = 1; c.owner = data.owner; c.ownerColor = data.color; c.ownerTextColor = data.textColor || '#ffffff';
                 // Auto-mark: since this owner picked this cell, mark all other cells as owner's error
                 // (they can't be in other cells on this floor)
                 if (optAuto) {
@@ -1599,12 +1623,12 @@
             let s_tag = fp.join('') + sq;
 
             if (c.v === 1 && c.owner === myNick) {
-                const m = { type: 'SYNC', f, d, action: 'unpass', owner: myNick, color: myColor }; applySync(m); syncMsg(m);
+                const m = { type: 'SYNC', f, d, action: 'unpass', owner: myNick, color: myColor, textColor: myTxtColor }; applySync(m); syncMsg(m);
                 log(`取消標記正確活路：L${10 - f} - ${s_tag}`, 'warn');
             }
-            else if (c.v === 1 && isHost) { const m = { type: 'SYNC', f, d, action: 'unpass', owner: c.owner, color: c.ownerColor }; applySync(m); syncMsg(m); }
+            else if (c.v === 1 && isHost) { const m = { type: 'SYNC', f, d, action: 'unpass', owner: c.owner, color: c.ownerColor, textColor: c.ownerTextColor }; applySync(m); syncMsg(m); }
             else if (c.v === 0 && !c.errors.includes(myNick)) {
-                const m = { type: 'SYNC', f, d, action: 'pass', owner: myNick, color: myColor }; applySync(m); syncMsg(m);
+                const m = { type: 'SYNC', f, d, action: 'pass', owner: myNick, color: myColor, textColor: myTxtColor }; applySync(m); syncMsg(m);
                 log(`標記正確活路：L${10 - f} - ${s_tag}`, 'ok');
             }
             else if (c.owner && c.owner !== myNick) log(`該格已被 ${c.owner} 標記。`, 'warn');
@@ -1617,7 +1641,7 @@
             const myErrCount = mapData[f].filter(cell => cell.errors.includes(myNick)).length;
             if (!alreadyErr && myErrCount >= 3) return;
             const action = alreadyErr ? 'unerror' : 'error';
-            const m = { type: 'SYNC', f, d, action, owner: myNick, color: myColor }; applySync(m); syncMsg(m);
+            const m = { type: 'SYNC', f, d, action, owner: myNick, color: myColor, textColor: myTxtColor }; applySync(m); syncMsg(m);
         }
 
         // ===== DOOR UI =====
@@ -1644,7 +1668,9 @@
                 el.classList.add('state-pass');
                 el.style.background = `linear-gradient(135deg,${c.ownerColor || '#22c55e'},${darken(c.ownerColor || '#22c55e')})`;
                 icon.textContent = 'O'; owner.textContent = c.owner;
+                owner.style.color = c.ownerTextColor || '#ffffff';
             } else {
+                owner.style.color = '';
                 // Show error state class if any errors, but no text X
                 if (c.errors.length > 0 && errEl) { el.classList.add('state-error'); }
                 // Maybe hints
@@ -1719,7 +1745,7 @@
         function removeMarkers(nick) {
             for (let f = 0; f < 10; f++)for (let d = 0; d < 4; d++) {
                 const c = mapData[f][d];
-                if (c.owner === nick) { c.v = 0; c.owner = null; c.ownerColor = null; }
+                if (c.owner === nick) { c.v = 0; c.owner = null; c.ownerColor = null; c.ownerTextColor = null; }
                 c.errors = c.errors.filter(n => n !== nick);
                 updateDoor(f, d);
             }
