@@ -885,8 +885,6 @@
     <div class="modal" id="m-create">
         <div class="mbox">
             <div class="mtitle">🏠 建立新房間</div>
-            <div class="mfield"><label>房間名稱</label><input class="field" id="inp-rname" maxlength="20"
-                    placeholder="輸入房間名..." style="width:100%"></div>
             <div class="mfield"><label>房間密碼（選填）</label><input class="field" id="inp-rpw" type="password" maxlength="20"
                     placeholder="留空則不設密碼..." style="width:100%"></div>
             <div class="mfield">
@@ -904,7 +902,7 @@
                             checked><span>自動標記可能性</span></label>
                     <label class="opt-label"><input type="checkbox" class="tcb" id="opt-members"
                             checked><span>顯示成員名單</span></label>
-                    <label class="opt-label"><input type="checkbox" class="tcb" id="opt-chat"><span>建立聊天框</span></label>
+                    <label class="opt-label"><input type="checkbox" class="tcb" id="opt-chat" checked><span>建立聊天框</span></label>
                 </div>
             </div>
             <div class="mbtns">
@@ -936,14 +934,6 @@
                         style="font-family:monospace;font-size:12px">
                     <button class="btn pri" id="btn-join" onclick="startJoin()">加入</button>
                 </div>
-            </div>
-            <div class="mfield" style="margin-top:10px">
-                <label>透過房間名稱搜尋（完全相同）</label>
-                <div class="join-row">
-                    <input class="field" type="text" id="srch-name" placeholder="輸入房間名稱搜尋...">
-                    <button class="btn pri" onclick="searchRoom()">搜尋</button>
-                </div>
-                <div class="srch-results" id="srch-results"></div>
             </div>
             <div class="mbtns">
                 <button class="btn" onclick="closeM('m-join')" style="width:100%">取消</button>
@@ -1107,7 +1097,7 @@
             connPanel: document.getElementById('conn-panel'),
             roomStatus: document.getElementById('room-status'), ridDisp: document.getElementById('rid-disp'),
             rnameDisp: document.getElementById('rname-disp'), rpwBadge: document.getElementById('rpw-badge'),
-            membersSec: document.getElementById('members-sec'), srchRes: document.getElementById('srch-results')
+            membersSec: document.getElementById('members-sec')
         };
 
         // ===== UTILS =====
@@ -1173,7 +1163,7 @@
         // ===== ROOM =====
         function openCreate() { if (!myNick) return alert('請先設定暱稱。'); openM('m-create'); }
         async function confirmCreate() {
-            roomName = document.getElementById('inp-rname').value.trim() || 'RJPQ隊伍';
+            roomName = 'RJPQ隊伍';
             roomPw = document.getElementById('inp-rpw').value.trim();
             optAuto = document.getElementById('opt-auto').checked;
             optMembers = document.getElementById('opt-members').checked;
@@ -1272,43 +1262,6 @@
         }
 
 
-
-        // ===== SEARCH ROOM =====
-        async function searchRoom() {
-            const name = document.getElementById('srch-name').value.trim();
-            if (!name) return;
-            if (!myNick) return alert('請先設定暱稱。');
-            E.srchRes.innerHTML = '<div style="font-size:12px;color:var(--muted)">🔍 搜尋中...</div>';
-            const tid = await roomHash(name);
-            // Try to connect to probe
-            initPeer(() => {
-                const probeConn = peer.connect(tid, { reliable: true });
-                let found = false;
-                probeConn.on('open', () => {
-                    found = true;
-                    probeConn.send({ type: 'PROBE', nick: myNick });
-                });
-                probeConn.on('data', data => {
-                    if (data.type === 'PROBE_REPLY') {
-                        E.srchRes.innerHTML = '';
-                        const item = document.createElement('div'); item.className = 'srch-item';
-                        item.innerHTML = `<span>🏠 <b>${data.roomName || name}</b><br><span style="font-size:10px;color:var(--muted)">${data.hasPw ? '🔐 需要密碼' : '🔓 無密碼'}</span></span>`;
-                        const joinBtn = document.createElement('button'); joinBtn.className = 'btn sm pri'; joinBtn.textContent = '加入';
-                        joinBtn.onclick = () => {
-                            E.joinId.value = tid;
-                            startJoinById(tid, name);
-                        };
-                        item.appendChild(joinBtn); E.srchRes.appendChild(item);
-                    }
-                });
-                setTimeout(() => {
-                    if (!found) {
-                        try { probeConn.close(); } catch (e) { }
-                        E.srchRes.innerHTML = '<div style="font-size:12px;color:#f87171">❌ 找不到名稱為「' + name + '」的房間</div>';
-                    }
-                }, 6000);
-            });
-        }
 
         // ===== PEER =====
         function initPeer(cb) {
@@ -1499,7 +1452,6 @@
                 roomName, hasPw: !!roomPw, optAuto, optMembers, optChat, optSeq, hostNick: myNick, hostColor: myColor, hostTextColor: myTxtColor, assignedColor: nextColor, assignedTextColor: data.textColor || '#ffffff'
             });
             refreshPList();
-            saveLocalRoom(fullMyId, roomName, roomPw, roomTags, (Object.keys(connections).length + 1));
         }
         // ===== HOST TRANSFER (when host leaves, promote first peer) =====
         function transferHost() {
@@ -1576,49 +1528,92 @@
         // ===== AUTO-MARK LOGIC =====
         function recalcMaybe(f) {
             if (!optAuto) return;
-            const players = getPlayers().map(p => p.nick).filter(n => n && n !== '?');
-            // reset
+            const allPlayers = getPlayers().map(p => p.nick).filter(n => n && n !== '?');
+
+            // Reset
             for (let d = 0; d < 4; d++) { mapData[f][d].maybe = []; mapData[f][d].certain = false; }
-            const passOwners = mapData[f].filter(c => c.v === 1).map(c => c.owner);
-            const remaining = players.filter(p => !passOwners.includes(p));
-            const unpassedIdx = []; for (let d = 0; d < 4; d++)if (mapData[f][d].v !== 1) unpassedIdx.push(d);
-            if (remaining.length === 0) { for (let d = 0; d < 4; d++)updateDoor(f, d); return; }
-            // Error-based hints (show if 1+ errors on that cell)
-            for (const d of unpassedIdx) {
-                const cell = mapData[f][d];
-                if (cell.errors.length >= 1) {
-                    const possible = remaining.filter(p => !cell.errors.includes(p));
-                    cell.maybe = possible;
-                    cell.certain = possible.length === 1;
+
+            // Players who already have a correct pass on this floor
+            const passOwners = new Set();
+            for (let d = 0; d < 4; d++) {
+                if (mapData[f][d].v === 1 && mapData[f][d].owner) passOwners.add(mapData[f][d].owner);
+            }
+
+            // Active players = those who haven't passed yet
+            const activePlayers = allPlayers.filter(p => !passOwners.has(p));
+            const unpassedIdx = [];
+            for (let d = 0; d < 4; d++) if (mapData[f][d].v !== 1) unpassedIdx.push(d);
+
+            if (activePlayers.length === 0 || unpassedIdx.length === 0) {
+                for (let d = 0; d < 4; d++) updateDoor(f, d);
+                return;
+            }
+
+            // Only compute if there are actual error marks on this floor
+            const anyErrors = activePlayers.some(p => unpassedIdx.some(d => mapData[f][d].errors.includes(p)));
+            if (!anyErrors) {
+                for (let d = 0; d < 4; d++) updateDoor(f, d);
+                return;
+            }
+
+            // Layer 1: Build possibility matrix based on error marks
+            // possible[p][d] = true means player p could be in door d
+            const possible = {};
+            for (const p of activePlayers) {
+                possible[p] = {};
+                for (const d of unpassedIdx) {
+                    possible[p][d] = !mapData[f][d].errors.includes(p);
                 }
             }
-            // Correct-mark-based hints (by elimination)
-            if (remaining.length === 1 && unpassedIdx.length === 1) {
-                const cell = mapData[f][unpassedIdx[0]];
-                if (!cell.maybe.includes(remaining[0])) cell.maybe = [...remaining];
-                cell.certain = true;
-            } else if (remaining.length === 2 && unpassedIdx.length === 2) {
+
+            // Layer 2 + 3: Cascade elimination (Pigeonhole + chain reactions)
+            let changed = true;
+            while (changed) {
+                changed = false;
+
+                // If a cell has only 1 possible player → that player is certain here
+                // → eliminate that player from all other un-passed cells
                 for (const d of unpassedIdx) {
-                    const cell = mapData[f][d];
-                    const possible = remaining.filter(p => !cell.errors.includes(p));
-                    if (possible.length > 0 && possible.length <= 2) {
-                        // only override if we get a narrower result (or haven't set already)
-                        if (cell.maybe.length === 0 || possible.length < cell.maybe.length) { cell.maybe = possible; cell.certain = possible.length === 1; }
+                    const possiblePlayers = activePlayers.filter(p => possible[p][d]);
+                    if (possiblePlayers.length === 1) {
+                        const certain = possiblePlayers[0];
+                        for (const d2 of unpassedIdx) {
+                            if (d2 !== d && possible[certain][d2]) {
+                                possible[certain][d2] = false;
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+
+                // If a player can only go to 1 cell → that cell is certain for them
+                // → eliminate all other players from that cell
+                for (const p of activePlayers) {
+                    const possibleCells = unpassedIdx.filter(d => possible[p][d]);
+                    if (possibleCells.length === 1) {
+                        const certainCell = possibleCells[0];
+                        for (const p2 of activePlayers) {
+                            if (p2 !== p && possible[p2][certainCell]) {
+                                possible[p2][certainCell] = false;
+                                changed = true;
+                            }
+                        }
                     }
                 }
             }
-            // Cross-elimination: if a player can only go to one cell, it's certain
-            for (const p of remaining) {
-                const canGo = unpassedIdx.filter(d => !mapData[f][d].errors.includes(p));
-                if (canGo.length === 1) {
-                    const cell = mapData[f][canGo[0]];
-                    if (!cell.maybe.includes(p)) cell.maybe.push(p);
-                    // also ensure if only 1 player possible → certain
-                    const check = remaining.filter(p2 => !mapData[f][canGo[0]].errors.includes(p2));
-                    if (check.length === 1) cell.certain = true;
+
+            // Store results: only mark cells where some player was eliminated (has useful info)
+            for (const d of unpassedIdx) {
+                const cell = mapData[f][d];
+                const possiblePlayers = activePlayers.filter(p => possible[p][d]);
+                const someEliminated = activePlayers.some(p => !possible[p][d]);
+                if (possiblePlayers.length > 0 && someEliminated) {
+                    cell.maybe = possiblePlayers;
+                    cell.certain = possiblePlayers.length === 1;
                 }
             }
-            for (let d = 0; d < 4; d++)updateDoor(f, d);
+
+            for (let d = 0; d < 4; d++) updateDoor(f, d);
         }
 
         // ===== DOOR INTERACTIONS =====
@@ -1678,17 +1673,26 @@
                 owner.style.color = c.ownerTextColor || '#ffffff';
             } else {
                 owner.style.color = '';
-                // Show error state class if any errors, but no text X
-                if (c.errors.length > 0 && errEl) { el.classList.add('state-error'); }
-                // Maybe hints
                 if (c.certain) {
+                    // Priority 1: Unique answer confirmed (★) — highest importance, always shown
                     el.classList.add('state-certain');
                     icon.textContent = '★';
-                    owner.textContent = c.maybe.length > 0 ? '僅剩此格：' + c.maybe.join('/') : '僅剩此格';
+                    icon.style.color = '';
+                    owner.textContent = '僅剩此格' + (c.maybe.length > 0 ? '：' + c.maybe.join('/') : '');
+                } else if (c.errors.includes(myNick)) {
+                    // Priority 2: Self-marked dead (✗) — overrides ? hint so player won't miss it
+                    el.classList.add('state-error');
+                    icon.textContent = '✗';
+                    icon.style.color = '#f87171';
+                    if (c.maybe && c.maybe.length > 0) {
+                        owner.textContent = '(' + c.maybe.join('/') + ')';
+                    }
                 } else if (c.maybe && c.maybe.length > 0) {
+                    // Priority 3: Possible candidates computed from elimination
                     el.classList.add('state-maybe');
                     icon.textContent = '?';
-                    owner.textContent = c.maybe.join('/');
+                    icon.style.color = '';
+                    owner.textContent = '(' + c.maybe.join('/') + ')';
                 }
             }
         }
