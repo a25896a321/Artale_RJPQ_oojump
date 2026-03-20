@@ -562,6 +562,14 @@
             pointer-events: none;
         }
 
+        /* Font Size Options */
+        .map-area.fz-sm .d-icon { font-size: 11px; }
+        .map-area.fz-sm .d-owner { font-size: 8px; }
+        .map-area.fz-md .d-icon { font-size: 15px; }
+        .map-area.fz-md .d-owner { font-size: 10px; }
+        .map-area.fz-lg .d-icon { font-size: 20px; }
+        .map-area.fz-lg .d-owner { font-size: 12px; }
+
         .d-seq {
             position: absolute;
             font-size: 24px;
@@ -837,8 +845,11 @@
             <div class="mtitle">🔗 加入房間</div>
             <div class="mfield"><label>請輸入您的暱稱</label><input class="field" id="inv-nick" maxlength="10"
                     placeholder="輸入暱稱..." style="width:100%"></div>
-            <div class="mfield"><label>選顏色(代表色)</label><input type="color" id="inv-color" value="#7c3aed"
-                    style="width:100%;height:36px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer">
+            <div class="mfield"><label>選顏色(代表色)</label>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <input type="color" id="inv-color" style="width:36px;height:36px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;flex-shrink:0;">
+                    <span style="font-size:12px;color:var(--muted)">自訂專屬顏色，可點選調色盤或滴管</span>
+                </div>
             </div>
             <div class="mbtns">
                 <button class="btn"
@@ -940,11 +951,8 @@
             <div class="nick-row">
                 <div style="display:flex;align-items:center;gap:6px;">
                     <span style="font-size:12px;color:var(--text)">代表色</span>
-                    <div class="swatch-wrap">
-                        <div class="swatch" id="swatch" style="background:#7c3aed"
-                            onclick="document.getElementById('col-inp').click()"></div>
-                        <input type="color" id="col-inp" value="#7c3aed" oninput="onColor(this.value)">
-                    </div>
+                    <input type="color" id="col-inp" style="width:32px;height:32px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;" oninput="onColor(this.value)">
+                    <span style="font-size:16px;cursor:pointer;" title="自訂顏色" onclick="document.getElementById('col-inp').click()">🎨</span>
                 </div>
                 <input class="field" type="text" id="nick-inp" maxlength="10" placeholder="輸入暱稱 (中英數)...">
             </div>
@@ -993,14 +1001,21 @@
             <div style="margin-top:10px">
                 <div class="log-hdr" onclick="toggleLog()">
                     <span class="log-ttl">📋 系統日誌</span>
-                    <button class="btn sm" id="btn-log">顯示</button>
+                    <button class="btn sm" id="btn-log">關閉</button>
                 </div>
-                <div class="log-panel" id="log-panel"></div>
+                <div class="log-panel show" id="log-panel"></div>
             </div>
         </div>
         <!-- 地圖 -->
-        <div class="map-area">
-            <div class="map-title">⬆ 樓梯地圖（L1 → L10）</div>
+        <div class="map-area fz-md" id="map-area-box">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div class="map-title" style="margin-bottom:0;">⬆ 樓梯地圖（L1 → L10）</div>
+                <select id="fz-sel" class="field" style="min-width:auto;width:auto;padding:2px 6px;font-size:11px;" onchange="changeMapFz(this.value)">
+                    <option value="fz-sm">小字</option>
+                    <option value="fz-md" selected>中字</option>
+                    <option value="fz-lg">大字</option>
+                </select>
+            </div>
             <div id="map-grid"></div>
         </div>
         <!-- 聊天室 -->
@@ -1034,7 +1049,8 @@
     </div>
     <script>
         // ===== STATE =====
-        let peer = null, myNick = "", myColor = "#7c3aed", isHost = false, fullMyId = "";
+        const BASE_COLORS = ['#c084fc', '#fef08a', '#bbf7d0', '#bfdbfe'];
+        let peer = null, myNick = "", myColor = BASE_COLORS[0], isHost = false, fullMyId = "";
         let roomName = "", roomPw = "", optAuto = true, optMembers = true, optSeq = '1234', optChat = false;
         let connections = {};
         let pendingConn = null;
@@ -1043,6 +1059,8 @@
         let inviteTargetId = ''; // store target peer ID from invite link
         const IDLE_MS = 60 * 60 * 1000;
         let mapData = Array(10).fill(null).map(() => Array(4).fill(null).map(() => ({ v: 0, owner: null, ownerColor: null, errors: [], maybe: [], certain: false })));
+
+        document.getElementById('col-inp').value = myColor;
 
         // ===== DOM =====
         const E = {
@@ -1074,35 +1092,32 @@
         function openM(id) { document.getElementById(id).classList.add('show'); }
         function closeM(id) { document.getElementById(id).classList.remove('show'); }
 
-        // ===== ROOM NAME HASH =====
-        async function roomHash(name) {
-            const d = new TextEncoder().encode('artale-rjpq-' + (name || '').toLowerCase().trim());
-            const buf = await crypto.subtle.digest('SHA-256', d);
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            let str = '';
-            const val = new Uint32Array(buf);
-            for (let i = 0; i < 6; i++) {
-                str += chars[val[i] % chars.length];
-            }
-            return str;
+        function changeMapFz(val) {
+            const b = document.getElementById('map-area-box');
+            b.classList.remove('fz-sm', 'fz-md', 'fz-lg');
+            b.classList.add(val);
         }
 
         // ===== COLOR =====
-        function onColor(v) { myColor = v; document.getElementById('swatch').style.background = v; }
+        function onColor(v) { myColor = v; document.getElementById('col-inp').value = v; if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor }); refreshPList(); } else if (peer) { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor }); } }
 
-        // ===== NICK =====
         function saveNick() {
             let v = E.nickInp.value.trim();
             if (!v) v = '冒險者' + Math.floor(1000 + Math.random() * 9000);
             if (!/^[a-zA-Z0-9\u4e00-\u9fa5]{1,10}$/.test(v)) return alert('暱稱請使用 1-10 位英數或中文字。');
             myNick = v; E.nickInp.value = myNick; E.nickInp.disabled = true; E.nickInp.style.opacity = '.7';
             E.btnSN.style.display = 'none'; E.btnEN.style.display = 'inline-flex';
-            E.initActs.style.display = 'flex';
-            log(`暱稱設定：${myNick}`, 'ok'); refreshPList();
+            if (!peer) {
+                E.initActs.style.display = 'flex';
+                log(`暱稱設定：${myNick}`, 'ok'); 
+            } else {
+                toast(`✅ 暱稱已更改為 ${myNick}`);
+                log(`暱稱已更新為 ${myNick}`, 'ok');
+                if (isHost) { broadcast({ type: 'UPDATE_NICK', nick: myNick, color: myColor }); refreshPList(); } else { const hc = Object.values(connections).find(c => c.conn && c.conn.open); if (hc) hc.conn.send({ type: 'UPDATE_NICK', nick: myNick, color: myColor }); E.plist.innerHTML=''; refreshPList(); }
+            }
         }
         function editNick() {
-            if (!confirm('修改暱稱將斷開目前連線，確定嗎？')) return;
-            leaveRoom(); E.nickInp.disabled = false; E.nickInp.style.opacity = '1';
+            E.nickInp.disabled = false; E.nickInp.style.opacity = '1'; E.nickInp.focus();
             E.btnSN.style.display = 'inline-flex'; E.btnEN.style.display = 'none';
         }
 
@@ -1136,47 +1151,37 @@
             await startHost();
         }
         async function startHost() {
-            const customId = await roomHash(roomName);
             setLoad(true, '建立 P2P 網關...');
-            peer = new Peer(customId, { debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }] } });
-            peer.on('open', id => {
-                fullMyId = id; isHost = true;
-                window.location.hash = fullMyId;
-                E.connPanel.style.display = 'none'; E.roomStatus.style.display = 'block';
-                E.ridDisp.textContent = fullMyId; E.rnameDisp.textContent = roomName;
-                E.rpwBadge.style.display = roomPw ? 'inline' : 'none';
-                E.btnCopy.style.display = 'inline-flex'; E.btnLeave.style.display = 'inline-flex';
-                E.btnReset.style.display = 'inline-flex';
-                E.btnEditPw.style.display = 'inline-flex'; E.btnRebuild.style.display = 'inline-flex';
-                E.membersSec.style.display = optMembers ? 'block' : 'none';
-                document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
-                for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
-                setLoad(false); log(`房間「${roomName}」已建立。`, 'ok'); refreshPList(); resetIdle();
-            });
-            peer.on('connection', conn => setupConn(conn));
-            peer.on('error', err => {
-                setLoad(false); log(`網關錯誤: ${err.type}`, 'error');
-                if (err.type === 'unavailable-id') {
-                    // fallback: try random ID
-                    peer = new Peer({ debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }] } });
-                    peer.on('open', id => {
-                        fullMyId = id; isHost = true;
-                        window.location.hash = fullMyId;
-                        E.connPanel.style.display = 'none'; E.roomStatus.style.display = 'block';
-                        E.ridDisp.textContent = fullMyId; E.rnameDisp.textContent = roomName;
-                        E.rpwBadge.style.display = roomPw ? 'inline' : 'none';
-                        E.btnCopy.style.display = 'inline-flex'; E.btnLeave.style.display = 'inline-flex';
-                        E.btnReset.style.display = 'inline-flex';
-                        E.btnEditPw.style.display = 'inline-flex'; E.btnRebuild.style.display = 'inline-flex';
-                        E.membersSec.style.display = optMembers ? 'block' : 'none';
-                        document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
-                        for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
-                        setLoad(false); log(`房間「${roomName}」已建立（自動ID）。`, 'ok'); refreshPList(); resetIdle();
-                    });
-                    peer.on('connection', conn => setupConn(conn));
-                    peer.on('error', e2 => { setLoad(false); log(`網關錯誤: ${e2.type}`, 'error'); });
-                } else if (err.type === 'peer-unavailable') { alert('找不到房號，請確認正確。'); }
-            });
+            function tryCreateHost() {
+                const customId = String(Math.floor(10000000 + Math.random() * 90000000));
+                peer = new Peer(customId, { debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }] } });
+                peer.on('open', id => {
+                    fullMyId = id; isHost = true;
+                    myColor = BASE_COLORS[0]; document.getElementById('col-inp').value = myColor;
+                    window.location.hash = fullMyId;
+                    E.connPanel.style.display = 'none'; E.roomStatus.style.display = 'block';
+                    E.ridDisp.textContent = fullMyId; E.rnameDisp.textContent = roomName;
+                    E.rpwBadge.style.display = roomPw ? 'inline' : 'none';
+                    E.btnCopy.style.display = 'inline-flex'; E.btnLeave.style.display = 'inline-flex';
+                    E.btnReset.style.display = 'inline-flex';
+                    E.btnEditPw.style.display = 'inline-flex'; E.btnRebuild.style.display = 'inline-flex';
+                    E.membersSec.style.display = optMembers ? 'block' : 'none';
+                    document.getElementById('chat-sec').style.display = optChat ? 'block' : 'none';
+                    for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
+                    setLoad(false); log(`房間「${roomName}」已建立。房號: ${fullMyId}`, 'ok'); refreshPList(); resetIdle();
+                });
+                peer.on('connection', conn => setupConn(conn));
+                peer.on('error', err => {
+                    if (err.type === 'unavailable-id') {
+                        log(`ID 衝突，自動重新生成...`, 'warn');
+                        tryCreateHost();
+                    } else {
+                        setLoad(false); log(`網關錯誤: ${err.type}`, 'error');
+                        if (err.type === 'peer-unavailable') { alert('找不到房號，請確認正確。'); }
+                    }
+                });
+            }
+            tryCreateHost();
         }
         function leaveRoom(silent = false) {
             if (peer) { try { peer.destroy(); } catch (e) { } peer = null; }
@@ -1380,6 +1385,7 @@
             } else if (data.type === 'WELCOME') {
                 setLoad(false); isHost = false;
                 connections[conn.peer] = { conn, nick: data.hostNick || '房主', color: data.hostColor || '#f59e0b' };
+                myColor = data.assignedColor || myColor; document.getElementById('col-inp').value = myColor;
                 mapData = JSON.parse(JSON.stringify(data.state));
                 roomName = data.roomName || ''; optAuto = data.optAuto !== false; optMembers = data.optMembers !== false;
                 optSeq = data.optSeq || 'none'; optChat = data.optChat || false;
@@ -1448,7 +1454,10 @@
             }
         }
         function acceptJoin(conn, data) {
-            connections[conn.peer] = { conn, nick: data.nick, color: data.color || '#94a3b8' };
+            const currentColors = Object.values(connections).map(c => c.color);
+            currentColors.push(myColor); // add host color
+            let nextColor = BASE_COLORS.find(c => !currentColors.includes(c)) || data.color || '#94a3b8';
+            connections[conn.peer] = { conn, nick: data.nick, color: nextColor };
             log(`歡迎成員: ${data.nick}`, 'ok');
             hasHadMembers = true;
             // Recalc maybe before sending state, so new member gets up-to-date state
@@ -1456,7 +1465,7 @@
             const list = getNickList(); broadcast({ type: 'NICK_LIST', users: list });
             conn.send({
                 type: 'WELCOME', state: JSON.parse(JSON.stringify(mapData)), users: list,
-                roomName, hasPw: !!roomPw, optAuto, optMembers, optChat, optSeq, hostNick: myNick, hostColor: myColor
+                roomName, hasPw: !!roomPw, optAuto, optMembers, optChat, optSeq, hostNick: myNick, hostColor: myColor, assignedColor: nextColor
             });
             refreshPList();
             saveLocalRoom(fullMyId, roomName, roomPw, roomTags, (Object.keys(connections).length + 1));
@@ -1543,10 +1552,10 @@
             const remaining = players.filter(p => !passOwners.includes(p));
             const unpassedIdx = []; for (let d = 0; d < 4; d++)if (mapData[f][d].v !== 1) unpassedIdx.push(d);
             if (remaining.length === 0) { for (let d = 0; d < 4; d++)updateDoor(f, d); return; }
-            // Error-based hints (only show if 2+ errors on that cell)
+            // Error-based hints (show if 1+ errors on that cell)
             for (const d of unpassedIdx) {
                 const cell = mapData[f][d];
-                if (cell.errors.length >= 2) {
+                if (cell.errors.length >= 1) {
                     const possible = remaining.filter(p => !cell.errors.includes(p));
                     cell.maybe = possible;
                     cell.certain = possible.length === 1;
@@ -1636,8 +1645,8 @@
                 el.style.background = `linear-gradient(135deg,${c.ownerColor || '#22c55e'},${darken(c.ownerColor || '#22c55e')})`;
                 icon.textContent = 'O'; owner.textContent = c.owner;
             } else {
-                // Show error text if any errors (no background change)
-                if (c.errors.length > 0 && errEl) { el.classList.add('state-error'); errEl.textContent = `✗×${c.errors.length}`; }
+                // Show error state class if any errors, but no text X
+                if (c.errors.length > 0 && errEl) { el.classList.add('state-error'); }
                 // Maybe hints
                 if (c.certain) {
                     el.classList.add('state-certain');
@@ -1724,7 +1733,6 @@
             const players = getPlayers().map(p => p.nick);
             log('=== 執行清空前紀錄 ===', 'warn');
             for (const p of players) {
-                let routeText = "";
                 let seq1234 = "";
                 let seq4321 = "";
                 for (let f = 9; f >= 0; f--) {
@@ -1733,17 +1741,18 @@
                         if (mapData[f][d].v === 1 && mapData[f][d].owner === p) { passIdx = d; break; }
                     }
                     if (passIdx !== -1) {
-                        let fp = ['x', 'x', 'x', 'x']; fp[passIdx] = 'o';
-                        routeText += (f < 9 ? "/" : "") + fp.join("");
                         seq1234 += (passIdx + 1);
                         seq4321 += (4 - passIdx);
                     } else {
-                        routeText += (f < 9 ? "/" : "") + "----";
                         seq1234 += "-";
                         seq4321 += "-";
                     }
                 }
-                log(`${p}：${routeText}（1234：${seq1234}）（4321：${seq4321}）`, 'info');
+                let outStr = `${p}：`;
+                if (optSeq === '1234') outStr += `1234：${seq1234}`;
+                else if (optSeq === '4321') outStr += `4321：${seq4321}`;
+                else outStr += `1234：${seq1234}、4321：${seq4321}`;
+                log(outStr, 'info');
             }
         }
 
