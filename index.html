@@ -963,17 +963,26 @@
             <div style="display:flex;gap:16px;margin-bottom:12px;">
                 <div style="flex:1;position:relative;">
                     <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">選擇代表色</span>
-                    <div id="col-swatch" style="width:100%;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;" onclick="document.getElementById('col-inp').click()"></div>
-                    <input type="color" id="col-inp" style="opacity:0;position:absolute;width:1px;height:1px;left:0;bottom:0;pointer-events:none;" oninput="onColor(this.value)">
+                    <div id="col-swatch"
+                        style="width:100%;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;"
+                        onclick="document.getElementById('col-inp').click()"></div>
+                    <input type="color" id="col-inp"
+                        style="opacity:0;position:absolute;width:1px;height:1px;left:0;bottom:0;pointer-events:none;"
+                        oninput="onColor(this.value)">
                 </div>
                 <div style="flex:1;position:relative;">
                     <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">選擇字體色</span>
-                    <div id="txt-swatch" style="width:100%;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;" onclick="document.getElementById('txt-inp').click()"></div>
-                    <input type="color" id="txt-inp" style="opacity:0;position:absolute;width:1px;height:1px;left:0;bottom:0;pointer-events:none;" value="#ffffff" oninput="onTxtColor(this.value)">
+                    <div id="txt-swatch"
+                        style="width:100%;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;"
+                        onclick="document.getElementById('txt-inp').click()"></div>
+                    <input type="color" id="txt-inp"
+                        style="opacity:0;position:absolute;width:1px;height:1px;left:0;bottom:0;pointer-events:none;"
+                        value="#ffffff" oninput="onTxtColor(this.value)">
                 </div>
             </div>
             <div class="nick-row">
-                <input class="field" type="text" id="nick-inp" maxlength="10" placeholder="輸入暱稱 (中英數)..." style="flex:1;">
+                <input class="field" type="text" id="nick-inp" maxlength="10" placeholder="輸入暱稱 (中英數)..."
+                    style="flex:1;">
             </div>
             <div class="btn-row">
                 <button class="btn pri" id="btn-snick" onclick="saveNick()">✅ 確定暱稱</button>
@@ -1029,7 +1038,8 @@
         <div class="map-area fz-md" id="map-area-box">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="map-title" style="margin-bottom:0;">⬆ 樓梯地圖（L1 → L10）</div>
-                <select id="fz-sel" class="field" style="min-width:auto;width:auto;padding:2px 6px;font-size:11px;background-color:#1a202c;color:#e2e8f0;"
+                <select id="fz-sel" class="field"
+                    style="min-width:auto;width:auto;padding:2px 6px;font-size:11px;background-color:#1a202c;color:#e2e8f0;"
                     onchange="changeMapFz(this.value)">
                     <option value="fz-sm">小字</option>
                     <option value="fz-md" selected>中字</option>
@@ -1069,7 +1079,7 @@
     </div>
     <script>
         // ===== STATE =====
-        const BASE_COLORS = ['#c084fc', '#fef08a', '#bbf7d0', '#bfdbfe'];
+        const BASE_COLORS = ['#7B241C', '#A04000', '#1D8348', '#1B4F72'];
         let peer = null, myNick = "", myColor = BASE_COLORS[0], myTxtColor = "#ffffff", isHost = false, fullMyId = "";
         let roomName = "", roomPw = "", optAuto = true, optMembers = true, optSeq = '1234', optChat = false;
         let connections = {};
@@ -1772,9 +1782,9 @@
                     }
                 }
                 let outStr = `${p}：`;
-                if (optSeq === '1234') outStr += `1234：${seq1234}`;
-                else if (optSeq === '4321') outStr += `4321：${seq4321}`;
-                else outStr += `1234：${seq1234}、4321：${seq4321}`;
+                if (optSeq === '1234') outStr += `模式1234：${seq1234}`;
+                else if (optSeq === '4321') outStr += `模式4321：${seq4321}`;
+                else outStr += `模式1234：${seq1234}、模式4321：${seq4321}`;
                 log(outStr, 'info');
             }
         }
