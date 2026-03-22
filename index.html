@@ -265,6 +265,24 @@
         ::-webkit-scrollbar-thumb { background:var(--acc); border-radius:2px; }
 
         @media(max-width:350px) { .door { height:36px; } .btn { padding:6px 9px; font-size:12px; } }
+
+        /* Advanced options toggle */
+        .adv-toggle {
+            width:100%; justify-content:center; margin-bottom:0;
+            background:rgba(124,58,237,.12); border-color:rgba(124,58,237,.3); color:var(--acc2);
+        }
+        .adv-toggle:hover { background:rgba(124,58,237,.22) !important; }
+        .adv-body { overflow:hidden; transition:max-height .3s ease, opacity .3s ease; max-height:0; opacity:0; }
+        .adv-body.open { max-height:400px; opacity:1; }
+
+        /* Stats */
+        .stat-num { font-size:22px; font-weight:900; color:var(--acc2); line-height:1.1; }
+        .stat-lbl { font-size:10px; color:var(--muted); margin-top:2px; }
+        .stats-card {
+            background:var(--card); border:1px solid var(--border);
+            border-radius:0 0 var(--radius) var(--radius);
+            padding:12px 16px; text-align:center; margin-top:1px;
+        }
     </style>
 </head>
 <body>
@@ -327,8 +345,8 @@
     <!-- ===== LOBBY SCREEN ===== -->
     <div id="screen-lobby" class="wrap">
         <div class="app-header">
-            <div class="h-title">⚔️ Artale_RJPQ_oojump</div>
-            <div class="h-badge">Romeo &amp; Juliet PQ</div>
+            <div class="h-title">⚔️ Artale_RJPQ_v1.6</div>
+            <div class="h-badge">oo_jump製作</div>
         </div>
 
         <!-- Shared: Nick + Color -->
@@ -352,31 +370,35 @@
         <!-- Create Room -->
         <div class="card lobby-section">
             <div class="ctitle">🏠 建立房間</div>
-            <div class="mfield">
-                <label>房間密碼（選填，留空則無密碼）</label>
-                <input class="field" id="cr-pw" type="text" placeholder="輸入密碼..." style="width:100%">
-            </div>
-            <div class="mfield">
-                <label>格子順序標記</label>
-                <select id="cr-seq" class="field" style="width:100%;background:#1a1a2e;color:#e2e8f0;">
-                    <option value="none">不顯示</option>
-                    <option value="1234" selected>由左至右 1234</option>
-                    <option value="4321">由左至右 4321</option>
-                </select>
-            </div>
-            <div class="mfield">
-                <label>功能選項</label>
-                <div class="opts-row">
-                    <label class="opt-label"><input type="checkbox" class="tcb" id="cr-auto" checked><span>自動標記可能性</span></label>
-                    <label class="opt-label"><input type="checkbox" class="tcb" id="cr-members" checked><span>顯示成員名單</span></label>
-                    <label class="opt-label"><input type="checkbox" class="tcb" id="cr-chat" checked><span>建立聊天框</span></label>
+            <button class="btn sm adv-toggle" onclick="toggleAdv()">⚙️ 進階選項 <span id="adv-arrow">▼</span></button>
+            <div class="adv-body" id="adv-body">
+                <div style="height:10px"></div>
+                <div class="mfield">
+                    <label>房間密碼（留空則無密碼）</label>
+                    <input class="field" id="cr-pw" type="text" placeholder="輸入密碼..." style="width:100%">
+                </div>
+                <div class="mfield">
+                    <label>格子順序標記</label>
+                    <select id="cr-seq" class="field" style="width:100%;background:#1a1a2e;color:#e2e8f0;">
+                        <option value="none">不顯示</option>
+                        <option value="1234" selected>由左至右 1234</option>
+                        <option value="4321">由右至左 4321</option>
+                    </select>
+                </div>
+                <div class="mfield" style="margin-bottom:4px">
+                    <label>功能選項</label>
+                    <div class="opts-row">
+                        <label class="opt-label"><input type="checkbox" class="tcb" id="cr-auto" checked><span>自動標記可能性</span></label>
+                        <label class="opt-label"><input type="checkbox" class="tcb" id="cr-members" checked><span>顯示成員名單</span></label>
+                        <label class="opt-label"><input type="checkbox" class="tcb" id="cr-chat" checked><span>建立聊天框</span></label>
+                    </div>
                 </div>
             </div>
-            <button class="btn pri" style="width:100%;margin-top:4px" onclick="doCreate()">✨ 建立房間</button>
+            <button class="btn pri" style="width:100%;margin-top:10px" onclick="doCreate()">✨ 建立房間</button>
         </div>
 
         <!-- Join Room -->
-        <div class="card lobby-section" style="border-radius:0 0 var(--radius) var(--radius)">
+        <div class="card lobby-section">
             <div class="ctitle">🌍 加入房間</div>
             <div class="mfield">
                 <label>房號（Room ID）</label>
@@ -387,6 +409,24 @@
                 <input class="field" id="jo-pw" type="text" placeholder="無密碼可留空..." style="width:100%">
             </div>
             <button class="btn gld" style="width:100%;margin-top:4px" onclick="doJoin()">🔑 加入房間</button>
+        </div>
+
+        <!-- Server Stats -->
+        <div class="stats-card">
+            <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:10px;letter-spacing:1px">🌐 伺服器即時狀態</div>
+            <div style="display:flex;justify-content:center;align-items:center;gap:24px">
+                <div>
+                    <div class="stat-num" id="stat-rooms">--</div>
+                    <div class="stat-lbl">🏠 活躍房間</div>
+                </div>
+                <div style="width:1px;height:36px;background:var(--border)"></div>
+                <div>
+                    <div class="stat-num" id="stat-users">--</div>
+                    <div class="stat-lbl">👥 在線人數</div>
+                </div>
+            </div>
+            <button class="btn sm" style="margin-top:10px" onclick="loadStats()">🔄 刷新</button>
+            <div style="font-size:10px;color:var(--muted);margin-top:6px;opacity:.7">每次加入／離開即時更新 · 頁面載入自動讀取</div>
         </div>
     </div>
 
@@ -596,6 +636,7 @@
             switch (data.type) {
                 case 'WELCOME': {
                     isHost = data.isHost;
+                    if (data.myNick) myNick = data.myNick;
                     myColor = data.myColor || myColor;
                     myTxtColor = data.myTextColor || myTxtColor;
                     options = { ...options, ...data.options };
@@ -700,11 +741,33 @@
             }
         }
 
+        // ===== ADVANCED TOGGLE =====
+        function toggleAdv() {
+            const body = document.getElementById('adv-body');
+            const arrow = document.getElementById('adv-arrow');
+            const open = body.classList.toggle('open');
+            arrow.textContent = open ? '▲' : '▼';
+        }
+
+        // ===== STATS =====
+        function loadStats() {
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(d => {
+                    document.getElementById('stat-rooms').textContent = d.rooms ?? '--';
+                    document.getElementById('stat-users').textContent = d.users ?? '--';
+                })
+                .catch(() => {
+                    document.getElementById('stat-rooms').textContent = '--';
+                    document.getElementById('stat-users').textContent = '--';
+                });
+        }
+
         // ===== LOBBY ACTIONS =====
         function getNick() { return document.getElementById('lb-nick').value.trim(); }
         function validateNick(nick) {
-            if (!nick) return '請輸入暱稱。';
-            if (!/^[a-zA-Z0-9\u4e00-\u9fa5]{1,10}$/.test(nick)) return '暱稱請使用 1-10 位英數或中文字。';
+            // Allow empty; server will auto-assign "未命名N"
+            if (nick && !/^[a-zA-Z0-9\u4e00-\u9fa5]{1,10}$/.test(nick)) return '暱稱請使用 1-10 位英數或中文字（最多10字）。';
             return null;
         }
 
@@ -712,7 +775,7 @@
             const nick = getNick();
             const err = validateNick(nick);
             if (err) return alert(err);
-            myNick = nick;
+            myNick = nick || '';
             const roomId = genRoomId();
             setLoad(true, '建立房間...');
             connectWS(roomId, {
@@ -737,10 +800,10 @@
             const nick = getNick();
             const err = validateNick(nick);
             if (err) return alert(err);
+            myNick = nick || '';
             let rid = document.getElementById('jo-id').value.trim();
             if (rid.includes('#')) rid = rid.split('#').pop();
             if (!rid) return alert('請輸入房號。');
-            myNick = nick;
             setLoad(true, '連線中...');
             connectWS(rid, {
                 type: 'JOIN',
@@ -976,6 +1039,7 @@
         // ===== BOOT =====
         renderGrid();
         log('歡迎使用 Artale_RJPQ_oojump！', 'ok');
+        loadStats();
 
         // Handle invite link (URL hash = room ID)
         const hashId = location.hash.substring(1);

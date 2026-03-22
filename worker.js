@@ -11,6 +11,11 @@ function initMapData() {
   );
 }
 
+// ===== Stats Helpers =====
+function getStats(env) {
+  return env.STATS.get(env.STATS.idFromName('global'));
+}
+
 // ===== Main Worker =====
 export default {
   async fetch(request, env) {
@@ -25,6 +30,12 @@ export default {
       }
       const stub = env.ROOM.get(env.ROOM.idFromName(roomId));
       return stub.fetch(request);
+    }
+
+    // Stats API — 1 extra HTTP request per page load, no polling needed
+    if (path === '/api/stats') {
+      const stats = getStats(env);
+      return stats.fetch(new Request('http://stats/get'));
     }
 
     // Serve static assets (index.html etc.)
@@ -238,16 +249,21 @@ export class Room {
           chat: data.options?.chat !== false,
           seq: data.options?.seq || '1234'
         };
+        // Auto-assign nick if empty
+        const createNick = (data.nick && data.nick.trim()) ? data.nick.trim() : '未命名1';
         const sess = {
-          joined: true, nick: data.nick, color: BASE_COLORS[0],
+          joined: true, nick: createNick, color: BASE_COLORS[0],
           textColor: data.textColor || '#ffffff', isHost: true
         };
         ws.serializeAttachment(sess);
         await this.saveConfig();
         await this.saveMapData();
         await this.state.storage.setAlarm(Date.now() + IDLE_MS);
+        // Update global stats
+        try { await getStats(this.env).fetch(new Request('http://stats/inc-room')); } catch (e) {}
+        try { await getStats(this.env).fetch(new Request('http://stats/inc-user')); } catch (e) {}
         ws.send(JSON.stringify({
-          type: 'WELCOME', isHost: true, myColor: sess.color, myTextColor: sess.textColor,
+          type: 'WELCOME', isHost: true, myNick: sess.nick, myColor: sess.color, myTextColor: sess.textColor,
           state: this.mapData, players: this.getPlayers(),
           options: this.options, hasPw: !!this.password, password: this.password
         }));
@@ -350,14 +366,22 @@ export class Room {
       ws.send(JSON.stringify({ type: 'REJECT', reason: '房間已滿（最多4人）。' }));
       return;
     }
-    const usedNicks = active.map(s => s.deserializeAttachment()?.nick);
-    if (usedNicks.includes(data.nick)) {
-      ws.send(JSON.stringify({ type: 'REJECT', reason: `暱稱「${data.nick}」已有人使用。` }));
-      return;
-    }
     if (this.password && data.password !== this.password) {
       ws.serializeAttachment({ ...session, pendingJoin: data });
       ws.send(JSON.stringify({ type: 'NEED_PW' }));
+      return;
+    }
+    // Auto-assign nick if empty; avoid duplicates
+    const usedNicks = active.map(s => s.deserializeAttachment()?.nick || '');
+    let nick = (data.nick && data.nick.trim()) ? data.nick.trim() : '';
+    if (!nick) {
+      for (let n = 1; n <= 4; n++) {
+        const candidate = `未命名${n}`;
+        if (!usedNicks.includes(candidate)) { nick = candidate; break; }
+      }
+      if (!nick) nick = `未命名${Date.now() % 100}`;
+    } else if (usedNicks.includes(nick)) {
+      ws.send(JSON.stringify({ type: 'REJECT', reason: `暱稱「${nick}」已有人使用。` }));
       return;
     }
     const usedColors = active.map(s => s.deserializeAttachment()?.color || '');
@@ -367,12 +391,14 @@ export class Room {
       this.roomCreated = true;
       await this.saveConfig();
     }
-    const sess = { joined: true, nick: data.nick, color, textColor: data.textColor || '#ffffff', isHost: isFirstAndNoRoom };
+    const sess = { joined: true, nick, color, textColor: data.textColor || '#ffffff', isHost: isFirstAndNoRoom };
     ws.serializeAttachment(sess);
     if (this.options.auto) for (let f = 0; f < 10; f++) this.recalcMaybe(f);
     const players = this.getPlayers();
+    // Update global stats
+    try { await getStats(this.env).fetch(new Request('http://stats/inc-user')); } catch (e) {}
     ws.send(JSON.stringify({
-      type: 'WELCOME', isHost: sess.isHost, myColor: color, myTextColor: sess.textColor,
+      type: 'WELCOME', isHost: sess.isHost, myNick: nick, myColor: color, myTextColor: sess.textColor,
       state: this.mapData, players, options: this.options, hasPw: !!this.password, password: this.password
     }));
     this.broadcast({ type: 'NICK_LIST', players }, ws);
@@ -383,6 +409,8 @@ export class Room {
     if (!session?.joined) return;
     this.removePlayerMarkers(session.nick);
     await this.saveMapData();
+    // Decrement user count
+    try { await getStats(this.env).fetch(new Request('http://stats/dec-user')); } catch (e) {}
     const players = this.getPlayers();
     this.broadcast({ type: 'NICK_LIST', players });
     this.broadcast({ type: 'PLAYER_LEFT', nick: session.nick });
@@ -409,11 +437,49 @@ export class Room {
   }
 
   async alarm() {
-    // Idle timeout — close all connections and wipe room state
+    // Idle timeout — notify, close all connections, wipe state, decrement room count
+    const sessionCount = this.getActiveSessions().length;
     this.broadcastAll({ type: 'IDLE_TIMEOUT' });
     for (const ws of this.state.getWebSockets()) {
       try { ws.close(1000, 'Idle timeout'); } catch (e) {}
     }
     await this.state.storage.deleteAll();
+    // Decrement room and remaining user counts from stats
+    try { await getStats(this.env).fetch(new Request('http://stats/dec-room')); } catch (e) {}
+    for (let i = 0; i < sessionCount; i++) {
+      try { await getStats(this.env).fetch(new Request('http://stats/dec-user')); } catch (e) {}
+    }
+  }
+}
+
+// ===== Stats Durable Object =====
+// Tracks global room count and user count.
+// Called via internal subrequests (not counted toward 100k/day external request limit).
+export class Stats {
+  constructor(state, env) {
+    this.state = state;
+    this.data = { rooms: 0, users: 0 };
+    this.state.blockConcurrencyWhile(async () => {
+      const stored = await this.state.storage.get('data');
+      if (stored) this.data = stored;
+    });
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    switch (url.pathname) {
+      case '/inc-room': this.data.rooms = Math.max(0, this.data.rooms + 1); break;
+      case '/dec-room': this.data.rooms = Math.max(0, this.data.rooms - 1); break;
+      case '/inc-user': this.data.users = Math.max(0, this.data.users + 1); break;
+      case '/dec-user': this.data.users = Math.max(0, this.data.users - 1); break;
+      case '/get':
+        return new Response(JSON.stringify(this.data), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      default:
+        return new Response('Not found', { status: 404 });
+    }
+    await this.state.storage.put('data', this.data);
+    return new Response('ok');
   }
 }

@@ -1,6 +1,6 @@
 # 網站網址↓↓
-https://artale-rjpq-oojump.a25896a321.workers.dev/
-
+舊版：https://artale-rjpq-oojump.a25896a321.workers.dev/
+beta版：https://auto-rjpq-oojump.a25896a321.workers.dev/
 
 # Artale_RJPQ_oojump 輔助工具
 
@@ -20,6 +20,7 @@ https://artale-rjpq-oojump.a25896a321.workers.dev/
 | v1.4.0 | 2026-03-20 | 房號改為8位數隨機碼，加入地圖字體大小切換，優化選色器介面及可能性推算顯示 |
 | v1.5.0 | 2026-03-20 | 重寫三層可能性邏輯（絕對排除→唯一推導→連鎖反應），自己的死路顯示✗，移除房名搜尋 |
 | v1.6.0 | 2026-03-22 | **架構升級**：P2P → Cloudflare Workers Durable Objects WebSocket；新登入頁分流；Bot 替補缺席成員（💀A/B/C）納入推算；密碼明碼顯示+複製；🔗邀請/🚪離開移至房間設定列 |
+| v1.7.0 | 2026-03-22 | 建立房間進階選項折疊（密碼、格子順序、功能選項）；允許暱稱留空（自動補「未命名1~4」）；新增首頁伺服器即時狀態（活躍房間、在線人數）；Stats Durable Object 追蹤全域統計 |
 
 ---
 
