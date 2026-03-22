@@ -512,6 +512,9 @@
                 <button class="btn sm" onclick="copyPath()" title="複製活路紀錄">📋</button>
             </div>
             <div style="font-size:10px;color:var(--muted);margin-top:5px">L1 → L10</div>
+            <div class="footer-btns" style="justify-content:center;margin-top:10px">
+                <button class="btn dng" id="btn-reset" style="display:none" onclick="resetAll()">🗑️ 清空所有標記</button>
+            </div>
         </div>
 
         <!-- Map -->
@@ -539,9 +542,7 @@
 
         <!-- Footer -->
         <div class="footer-card">
-            <div class="footer-btns">
-                <button class="btn dng" id="btn-reset" style="display:none;flex:1" onclick="resetAll()">🗑️ 清空所有標記</button>
-            </div>
+            <div class="footer-btns"></div>
             <div class="instructions">
                 🖱️ <b>左鍵</b>：標記正確（每層限 1 格）<br>
                 🖱️ <b>右鍵</b>：標記死路（每層限 3 格）<br>
