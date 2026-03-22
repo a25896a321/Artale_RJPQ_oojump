@@ -958,7 +958,7 @@
                 const f = 10 - l; // L1=f9, L2=f8, ..., L10=f0
                 let found = '_';
                 for (let d = 0; d < 4; d++) {
-                    if (mapData[f][d].v === 1) { found = String(d + 1); break; }
+                    if (mapData[f][d].v === 1 && mapData[f][d].owner === myNick) { found = String(d + 1); break; }
                 }
                 digits.push(found);
             }
