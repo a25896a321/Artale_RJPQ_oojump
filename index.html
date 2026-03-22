@@ -452,17 +452,17 @@
             </div>
             <!-- Action buttons -->
             <div class="btn-row">
-                <button class="btn sm" id="btn-editpw" style="display:none" onclick="editPw()">🔑 編輯密碼</button>
-                <button class="btn sm gld" onclick="copyInvite()">🔗 邀請連結</button>
-                <button class="btn sm dng" onclick="leaveRoom()">🚪 離開</button>
-                <button class="btn sm" id="btn-rebuild" style="display:none" onclick="rebuildRoom()">🔨 重建</button>
-                <button class="btn sm" onclick="openEditNick()">✏️ 暱稱</button>
+                <button class="btn sm" id="btn-editpw" style="display:none" onclick="editPw()">編輯密碼</button>
+                <button class="btn sm gld" onclick="copyInvite()">🔗邀請連結</button>
+                <button class="btn sm dng" onclick="leaveRoom()">離開</button>
+                <button class="btn sm" id="btn-rebuild" style="display:none" onclick="rebuildRoom()">重建</button>
+                <button class="btn sm" onclick="openEditNick()">編輯暱稱/顏色</button>
             </div>
         </div>
 
         <!-- Members -->
         <div class="card" id="members-sec">
-            <div class="ctitle">房間成員（含替補 💀）</div>
+            <div class="ctitle">房間成員（💀為待補）</div>
             <div class="member-list" id="plist"></div>
         </div>
 
@@ -476,13 +476,13 @@
         </div>
 
         <!-- Path Record -->
-        <div class="card">
-            <div class="ctitle">✅ 活路紀錄</div>
-            <div style="display:flex;align-items:center;gap:10px">
-                <div id="path-record" style="font-family:monospace;font-size:19px;font-weight:900;letter-spacing:3px;color:var(--green);flex:1;word-break:break-all">???-???-???-?</div>
-                <button class="btn sm" onclick="copyPath()" title="複製10碼活路紀錄">📋</button>
+        <div class="card" style="text-align:center">
+            <div class="ctitle" style="justify-content:center">✅ 活路紀錄</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+                <div id="path-record" style="font-family:monospace;font-size:20px;font-weight:900;letter-spacing:3px;color:var(--green)">___-___-___-_</div>
+                <button class="btn sm" onclick="copyPath()" title="複製含連字號活路紀錄">📋</button>
             </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:5px">L1 → L10 各層活路門號（1~4，? = 尚未選擇）· 📋 複製10碼</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:5px">L1 → L10 各層活路門號（_ = 尚未選擇）</div>
         </div>
 
         <!-- Map -->
@@ -490,9 +490,9 @@
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="map-title" style="margin-bottom:0">⬆ 樓梯地圖（L1 → L10）</div>
                 <select id="fz-sel" class="field" style="min-width:auto;width:auto;padding:2px 6px;font-size:11px;background-color:#1a202c;color:#e2e8f0;" onchange="changeMapFz(this.value)">
-                    <option value="fz-sm">小字</option>
-                    <option value="fz-md" selected>中字</option>
-                    <option value="fz-lg">大字</option>
+                    <option value="fz-sm">小字體</option>
+                    <option value="fz-md" selected>中字體</option>
+                    <option value="fz-lg">大字體</option>
                 </select>
             </div>
             <div id="map-grid"></div>
@@ -966,7 +966,7 @@
             const digits = [];
             for (let l = 1; l <= 10; l++) {
                 const f = 10 - l; // L1=f9, L2=f8, ..., L10=f0
-                let found = '?';
+                let found = '_';
                 for (let d = 0; d < 4; d++) {
                     if (mapData[f][d].v === 1) { found = String(d + 1); break; }
                 }
@@ -974,14 +974,16 @@
             }
             return digits;
         }
+        function formatPath(digits) {
+            return digits.slice(0,3).join('') + '-' + digits.slice(3,6).join('') + '-' + digits.slice(6,9).join('') + '-' + digits[9];
+        }
         function updatePathRecord() {
             const el = document.getElementById('path-record');
             if (!el) return;
-            const d = getPathRecord();
-            el.textContent = d.slice(0,3).join('') + '-' + d.slice(3,6).join('') + '-' + d.slice(6,9).join('') + '-' + d[9];
+            el.textContent = formatPath(getPathRecord());
         }
         function copyPath() {
-            navigator.clipboard.writeText(getPathRecord().join('')).then(() => toast('✅ 活路紀錄已複製（10碼）！'));
+            navigator.clipboard.writeText(formatPath(getPathRecord())).then(() => toast('✅ 活路紀錄已複製！'));
         }
 
         // ===== DOOR INTERACTIONS =====
