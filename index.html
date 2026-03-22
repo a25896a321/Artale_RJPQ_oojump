@@ -775,12 +775,18 @@
                     currentPw = data.password || '';
                     updatePwDisplay(currentPw);
                     break;
-                case 'RESET':
+                case 'RESET': {
+                    // Print own path record before clearing
+                    const snapPath = formatPath(getPathRecord());
+                    if (snapPath !== '___-___-___-_') {
+                        log(`📋 清空前活路紀錄 [${myNick}]：${snapPath}`, 'ok');
+                    }
                     mapData = initMapData();
                     for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
                     updatePathRecord();
                     log('所有標記已清空', 'warn');
                     break;
+                }
                 case 'KICK':
                     disconnect(true);
                     alert('您已被房主踢出房間。');
