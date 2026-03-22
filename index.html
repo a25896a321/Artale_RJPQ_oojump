@@ -410,14 +410,9 @@
             <button class="btn gld" style="width:100%;margin-top:4px" onclick="doJoin()">🔑 加入房間</button>
         </div>
 
-        <!-- Server Stats -->
+        <!-- Warning -->
         <div class="stats-card">
-            <div style="display:flex;align-items:center;justify-content:center;gap:10px">
-                <span style="font-size:12px;color:var(--muted);font-weight:700">🏠 目前房間數量：</span>
-                <span class="stat-num" id="stat-rooms" style="font-size:18px">--</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:6px;opacity:.7">每次加入／離開即時更新 · 頁面載入自動讀取</div>
-            <div style="font-size:11px;color:#f87171;margin-top:8px;font-weight:700">⚠️ 若當日網頁超過用量，此版本將無法使用</div>
+            <div style="font-size:11px;color:#f87171;font-weight:700">⚠️ 若當日網頁超過用量，此版本將無法使用</div>
         </div>
     </div>
 
@@ -833,18 +828,6 @@
             arrow.textContent = open ? '▲' : '▼';
         }
 
-        // ===== STATS =====
-        function loadStats() {
-            fetch('/api/stats')
-                .then(r => r.json())
-                .then(d => {
-                    document.getElementById('stat-rooms').textContent = d.rooms ?? '--';
-                })
-                .catch(() => {
-                    document.getElementById('stat-rooms').textContent = '--';
-                });
-        }
-
         // ===== LOBBY ACTIONS =====
         function getNick() { return document.getElementById('lb-nick').value.trim(); }
         function validateNick(nick) {
@@ -1148,7 +1131,6 @@
         // ===== BOOT =====
         renderGrid();
         log('歡迎使用 Artale_RJPQ_oojump！', 'ok');
-        loadStats();
 
         // Handle invite link (URL hash = room ID) → show dedicated invite screen
         const hashId = location.hash.substring(1);
