@@ -409,7 +409,7 @@ export class Room {
     if (!session?.joined) return;
     this.removePlayerMarkers(session.nick);
     await this.saveMapData();
-    // Decrement user count
+    // Decrement user count for this player
     try { await getStats(this.env).fetch(new Request('http://stats/dec-user')); } catch (e) {}
     const players = this.getPlayers();
     this.broadcast({ type: 'NICK_LIST', players });
@@ -430,6 +430,12 @@ export class Room {
         this.broadcastAll({ type: 'NICK_LIST', players: updatedPlayers });
       }
     }
+    // If no active sessions remain, the room is now empty → decrement room count
+    const remaining = this.getActiveSessions();
+    if (remaining.length === 0 && this.roomCreated) {
+      this.roomCreated = false;
+      try { await getStats(this.env).fetch(new Request('http://stats/dec-room')); } catch (e) {}
+    }
   }
 
   async webSocketError(ws, error) {
@@ -437,17 +443,24 @@ export class Room {
   }
 
   async alarm() {
-    // Idle timeout — notify, close all connections, wipe state, decrement room count
-    const sessionCount = this.getActiveSessions().length;
+    // Idle timeout — mark all as left before closing to prevent webSocketClose double-counting
+    const activeSessions = this.getActiveSessions();
+    const userCount = activeSessions.length;
+    for (const ws of this.state.getWebSockets()) {
+      const d = ws.deserializeAttachment();
+      if (d) ws.serializeAttachment({ ...d, joined: false });
+    }
     this.broadcastAll({ type: 'IDLE_TIMEOUT' });
     for (const ws of this.state.getWebSockets()) {
       try { ws.close(1000, 'Idle timeout'); } catch (e) {}
     }
     await this.state.storage.deleteAll();
-    // Decrement room and remaining user counts from stats
-    try { await getStats(this.env).fetch(new Request('http://stats/dec-room')); } catch (e) {}
-    for (let i = 0; i < sessionCount; i++) {
-      try { await getStats(this.env).fetch(new Request('http://stats/dec-user')); } catch (e) {}
+    // Manually decrement stats (webSocketClose skipped due to joined:false)
+    if (userCount > 0) {
+      try { await getStats(this.env).fetch(new Request('http://stats/dec-room')); } catch (e) {}
+      for (let i = 0; i < userCount; i++) {
+        try { await getStats(this.env).fetch(new Request('http://stats/dec-user')); } catch (e) {}
+      }
     }
   }
 }
