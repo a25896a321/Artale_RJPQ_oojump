@@ -380,7 +380,6 @@
                 <div class="mfield">
                     <label>格子順序標記</label>
                     <select id="cr-seq" class="field" style="width:100%;background:#1a1a2e;color:#e2e8f0;">
-                        <option value="none">不顯示</option>
                         <option value="1234" selected>由左至右 1234</option>
                         <option value="4321">由右至左 4321</option>
                     </select>
@@ -958,7 +957,11 @@
                 const f = 10 - l; // L1=f9, L2=f8, ..., L10=f0
                 let found = '_';
                 for (let d = 0; d < 4; d++) {
-                    if (mapData[f][d].v === 1 && mapData[f][d].owner === myNick) { found = String(d + 1); break; }
+                    if (mapData[f][d].v === 1 && mapData[f][d].owner === myNick) {
+                        // Display number follows sq mode (same as door label)
+                        found = options.seq === '4321' ? String(4 - d) : String(d + 1);
+                        break;
+                    }
                 }
                 digits.push(found);
             }
@@ -1012,8 +1015,8 @@
             owner.textContent = ''; owner.style.color = '';
             if (seqEl) seqEl.textContent = '';
 
-            if (c.v === 0 && options.seq !== 'none' && seqEl) {
-                seqEl.textContent = options.seq === '1234' ? (d + 1).toString() : (4 - d).toString();
+            if (c.v === 0 && seqEl) {
+                seqEl.textContent = options.seq === '4321' ? (4 - d).toString() : (d + 1).toString();
             }
 
             if (c.v === 1) {
