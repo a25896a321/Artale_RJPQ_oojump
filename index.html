@@ -421,6 +421,44 @@
         </div>
     </div>
 
+    <!-- ===== INVITE SCREEN ===== -->
+    <div id="screen-invite" class="wrap" style="display:none">
+        <div class="app-header">
+            <div class="h-title">⚔️ Artale_RJPQ_v1.6</div>
+            <div class="h-badge">oo_jump製作</div>
+        </div>
+        <div class="card" style="border-radius:0 0 var(--radius) var(--radius)">
+            <div class="ctitle">🔗 邀請加入房間</div>
+            <div class="mfield">
+                <label>房號</label>
+                <div id="inv-rid" class="rid-box" style="font-size:14px;padding:8px 11px;color:var(--goldc);letter-spacing:2px">--------</div>
+            </div>
+            <div class="mfield">
+                <label>暱稱（留空自動分配）</label>
+                <input class="field" type="text" id="inv-nick" maxlength="10" placeholder="輸入暱稱（中英數，最多10字）..." style="width:100%">
+            </div>
+            <div class="mfield">
+                <div class="color-row" style="margin-bottom:0">
+                    <div class="color-block">
+                        <span>代表色</span>
+                        <div class="color-swatch" id="inv-col-sw" onclick="document.getElementById('inv-col-inp').click()"></div>
+                        <input type="color" class="color-inp" id="inv-col-inp" value="#7B241C" oninput="myColor=this.value;document.getElementById('inv-col-sw').style.background=this.value">
+                    </div>
+                    <div class="color-block">
+                        <span>字體色</span>
+                        <div class="color-swatch" id="inv-txt-sw" onclick="document.getElementById('inv-txt-inp').click()"></div>
+                        <input type="color" class="color-inp" id="inv-txt-inp" value="#ffffff" oninput="myTxtColor=this.value;document.getElementById('inv-txt-sw').style.background=this.value">
+                    </div>
+                </div>
+            </div>
+            <div class="mfield">
+                <label>密碼（無密碼房間可留空）</label>
+                <input class="field" id="inv-pw" type="text" placeholder="輸入密碼..." style="width:100%">
+            </div>
+            <button class="btn gld" style="width:100%;margin-top:4px" onclick="doInviteJoin()">🔑 進入房間</button>
+        </div>
+    </div>
+
     <!-- ===== ROOM SCREEN ===== -->
     <div id="screen-room" class="wrap" style="display:none">
         <div class="app-header">
@@ -581,13 +619,49 @@
         // ===== SCREEN MANAGEMENT =====
         function showLobby() {
             document.getElementById('screen-lobby').style.display = '';
+            document.getElementById('screen-invite').style.display = 'none';
             document.getElementById('screen-room').style.display = 'none';
             document.getElementById('idle').classList.remove('show');
             mapData = initMapData(); allPlayers = []; isHost = false; currentRoomId = ''; currentPw = '';
         }
         function showRoom() {
             document.getElementById('screen-lobby').style.display = 'none';
+            document.getElementById('screen-invite').style.display = 'none';
             document.getElementById('screen-room').style.display = '';
+        }
+
+        function showInvite(roomId) {
+            document.getElementById('screen-lobby').style.display = 'none';
+            document.getElementById('screen-invite').style.display = '';
+            document.getElementById('screen-room').style.display = 'none';
+            document.getElementById('inv-rid').textContent = roomId;
+            // Sync color pickers with current state
+            document.getElementById('inv-col-inp').value = myColor;
+            document.getElementById('inv-col-sw').style.background = myColor;
+            document.getElementById('inv-txt-inp').value = myTxtColor;
+            document.getElementById('inv-txt-sw').style.background = myTxtColor;
+            document.getElementById('inv-nick').focus();
+        }
+
+        function doInviteJoin() {
+            const nick = document.getElementById('inv-nick').value.trim();
+            const err = validateNick(nick);
+            if (err) return alert(err);
+            const rid = document.getElementById('inv-rid').textContent.trim();
+            myNick = nick || '';
+            myColor = document.getElementById('inv-col-inp').value;
+            myTxtColor = document.getElementById('inv-txt-inp').value;
+            setLoad(true, '連線中...');
+            connectWS(rid, {
+                type: 'JOIN',
+                nick: myNick, color: myColor, textColor: myTxtColor,
+                password: document.getElementById('inv-pw').value.trim()
+            });
+            setTimeout(() => {
+                if (document.getElementById('screen-invite').style.display !== 'none') {
+                    setLoad(false); alert('連線超時，請確認房號是否正確。');
+                }
+            }, 8000);
         }
 
         // ===== WEBSOCKET =====
@@ -1069,12 +1143,11 @@
         log('歡迎使用 Artale_RJPQ_oojump！', 'ok');
         loadStats();
 
-        // Handle invite link (URL hash = room ID)
+        // Handle invite link (URL hash = room ID) → show dedicated invite screen
         const hashId = location.hash.substring(1);
         if (hashId && /^\d{8}$/.test(hashId)) {
-            document.getElementById('jo-id').value = hashId;
-            document.getElementById('lb-nick').focus();
-            log(`偵測到邀請房號 ${hashId}，請填寫暱稱後點「加入房間」。`, 'warn');
+            showInvite(hashId);
+            log(`偵測到邀請房號 ${hashId}，請填寫暱稱後進入房間。`, 'warn');
         }
 
         // Prevent right-click context menu on map
