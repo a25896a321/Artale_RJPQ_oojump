@@ -470,9 +470,19 @@
         <div class="card">
             <div class="log-hdr" onclick="toggleLog()">
                 <span class="log-ttl">📋 系統日誌</span>
-                <button class="btn sm" id="btn-log">關閉</button>
+                <button class="btn sm" id="btn-log">顯示</button>
             </div>
-            <div class="log-panel show" id="log-panel"></div>
+            <div class="log-panel" id="log-panel"></div>
+        </div>
+
+        <!-- Path Record -->
+        <div class="card">
+            <div class="ctitle">✅ 活路紀錄</div>
+            <div style="display:flex;align-items:center;gap:10px">
+                <div id="path-record" style="font-family:monospace;font-size:19px;font-weight:900;letter-spacing:3px;color:var(--green);flex:1;word-break:break-all">???-???-???-?</div>
+                <button class="btn sm" onclick="copyPath()" title="複製10碼活路紀錄">📋</button>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:5px">L1 → L10 各層活路門號（1~4，? = 尚未選擇）· 📋 複製10碼</div>
         </div>
 
         <!-- Map -->
@@ -655,6 +665,7 @@
 
                     renderPList();
                     for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
+                    updatePathRecord();
                     showRoom();
                     setLoad(false);
                     window.location.hash = currentRoomId;
@@ -702,6 +713,7 @@
                 case 'RESET':
                     mapData = initMapData();
                     for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
+                    updatePathRecord();
                     log('所有標記已清空', 'warn');
                     break;
                 case 'KICK':
@@ -945,7 +957,31 @@
                 c.errors = c.errors.filter(n => n !== data.owner);
             }
             updateDoor(data.f, data.d);
+            if (data.action === 'pass' || data.action === 'unpass') updatePathRecord();
             // Server will send MAYBE_STATE after; no local recalc needed
+        }
+
+        // ===== PATH RECORD =====
+        function getPathRecord() {
+            const digits = [];
+            for (let l = 1; l <= 10; l++) {
+                const f = 10 - l; // L1=f9, L2=f8, ..., L10=f0
+                let found = '?';
+                for (let d = 0; d < 4; d++) {
+                    if (mapData[f][d].v === 1) { found = String(d + 1); break; }
+                }
+                digits.push(found);
+            }
+            return digits;
+        }
+        function updatePathRecord() {
+            const el = document.getElementById('path-record');
+            if (!el) return;
+            const d = getPathRecord();
+            el.textContent = d.slice(0,3).join('') + '-' + d.slice(3,6).join('') + '-' + d.slice(6,9).join('') + '-' + d[9];
+        }
+        function copyPath() {
+            navigator.clipboard.writeText(getPathRecord().join('')).then(() => toast('✅ 活路紀錄已複製（10碼）！'));
         }
 
         // ===== DOOR INTERACTIONS =====
@@ -956,9 +992,6 @@
             if (c.v === 1 && c.owner === myNick) {
                 const m = { type: 'SYNC', f, d, action: 'unpass', owner: myNick, color: myColor, textColor: myTxtColor };
                 applySync(m); sendWS(m); log(`取消正確標記：L${10 - f} 第${d + 1}格`, 'warn');
-            } else if (c.v === 1 && isHost && c.owner !== myNick) {
-                const m = { type: 'SYNC', f, d, action: 'unpass', owner: c.owner, color: c.ownerColor, textColor: c.ownerTextColor };
-                applySync(m); sendWS(m);
             } else if (c.v === 0 && !c.errors.includes(myNick)) {
                 const m = { type: 'SYNC', f, d, action: 'pass', owner: myNick, color: myColor, textColor: myTxtColor };
                 applySync(m); sendWS(m); log(`標記正確活路：L${10 - f} 第${d + 1}格${sq}`, 'ok');
