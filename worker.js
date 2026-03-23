@@ -397,12 +397,29 @@ export class Room {
 
       case 'KICK': {
         if (!session.isHost) return;
+        // Try to kick an active (connected) player
+        let kicked = false;
         for (const other of this.state.getWebSockets()) {
           const d = other.deserializeAttachment();
           if (d?.nick === data.nick && other !== ws) {
             try { other.send(JSON.stringify({ type: 'KICK' })); } catch (e) {}
             try { other.close(1000, 'Kicked'); } catch (e) {}
+            kicked = true;
             break;
+          }
+        }
+        // Fallback: kick a disconnected player (no active WebSocket)
+        if (!kicked && this.disconnectedPlayers[data.nick]) {
+          this.removePlayerMarkers(data.nick);
+          delete this.disconnectedPlayers[data.nick];
+          await this.saveDisconnected();
+          await this.saveMapData();
+          const players = this.getPlayers();
+          this.broadcastAll({ type: 'PLAYER_LEFT', nick: data.nick, players });
+          if (this.options.auto) {
+            for (let f = 0; f < 10; f++) {
+              this.broadcastAll({ ...this.getMaybeState(f), seq: this.nextSeq() });
+            }
           }
         }
         break;
@@ -462,9 +479,8 @@ export class Room {
     }
 
     // ── New player path ────────────────────────────────────────────────────────
-    // Capacity: active + disconnected slots count toward the 4-player cap
-    const totalRealPlayers = active.length + Object.keys(this.disconnectedPlayers).length;
-    if (totalRealPlayers >= 4) {
+    // Hard cap: only active sessions count — a disconnected slot can be displaced
+    if (active.length >= 4) {
       ws.send(JSON.stringify({ type: 'REJECT', reason: '房間已滿（最多4人）。' }));
       return;
     }
@@ -474,7 +490,19 @@ export class Room {
       return;
     }
 
-    // Nick uniqueness across active + disconnected
+    // Auto-evict the oldest disconnected player when total would exceed 4
+    if (active.length + Object.keys(this.disconnectedPlayers).length >= 4) {
+      const evictNick = Object.keys(this.disconnectedPlayers)[0];
+      if (evictNick) {
+        this.removePlayerMarkers(evictNick);
+        delete this.disconnectedPlayers[evictNick];
+        await this.saveDisconnected();
+        await this.saveMapData();
+        this.broadcastAll({ type: 'PLAYER_LEFT', nick: evictNick, players: this.getPlayers() });
+      }
+    }
+
+    // Nick uniqueness across active + remaining disconnected (after any eviction)
     const usedNicks = [
       ...active.map(s => s.deserializeAttachment()?.nick || ''),
       ...Object.keys(this.disconnectedPlayers)

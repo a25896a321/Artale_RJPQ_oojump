@@ -1086,8 +1086,8 @@
                 s.style.background = col + '22';
                 const icon = p.isHost ? '👑 ' : p.isBot ? '' : p.isDisconnected ? '🔴 ' : '🙎🏽‍♂️ ';
                 s.textContent = icon + p.nick + (p.isDisconnected ? '（斷線）' : '');
-                // Only allow kicking active (non-disconnected) non-bot non-host players
-                if (isHost && !p.isHost && !p.isBot && !p.isDisconnected) {
+                // Host can kick any non-bot non-host player, including disconnected ones
+                if (isHost && !p.isHost && !p.isBot) {
                     const kb = document.createElement('button');
                     kb.className = 'kick-btn'; kb.textContent = '✕'; kb.title = '踢出';
                     kb.onclick = () => { if (confirm(`確定踢出 ${p.nick}？`)) sendWS({ type: 'KICK', nick: p.nick }); };
