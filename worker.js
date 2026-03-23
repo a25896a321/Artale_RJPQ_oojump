@@ -575,3 +575,11 @@ export class Stats {
   webSocketClose(ws, code, reason, wasClean) {}
   webSocketError(ws, error) {}
 }
+
+// ===== Migration stubs =====
+// Required only so that the v3 renamed_classes migration can resolve its target.
+// These classes carry no logic and have no bindings — they exist solely to satisfy
+// Cloudflare's requirement that a renamed-to class must be exported by the script.
+// Safe to keep permanently; they do nothing.
+export class RoomLegacy {}
+export class StatsLegacy {}
