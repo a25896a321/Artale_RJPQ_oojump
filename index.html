@@ -275,9 +275,22 @@
         .adv-body { overflow:hidden; transition:max-height .3s ease, opacity .3s ease; max-height:0; opacity:0; }
         .adv-body.open { max-height:400px; opacity:1; }
 
-        /* Stats */
-        .stat-num { font-size:22px; font-weight:900; color:var(--acc2); line-height:1.1; }
-        .stat-lbl { font-size:10px; color:var(--muted); margin-top:2px; }
+        /* Stats bar in header */
+        .h-stats { font-size:10px; color:rgba(255,255,255,.75); letter-spacing:.5px; margin-top:3px; }
+
+        /* Disconnected player tag */
+        .mtag.disconnected { opacity:.5; font-style:italic; filter:grayscale(.6); }
+
+        /* Reconnect overlay (reuses idle-box style) */
+        #reconnect-bar {
+            position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+            background:var(--card); border:1px solid var(--bacc); border-radius:var(--rsm);
+            padding:8px 16px; font-size:12px; font-weight:700; color:var(--acc2);
+            box-shadow:var(--shadow); z-index:9990; display:none; gap:8px; align-items:center;
+        }
+        #reconnect-bar.show { display:flex; }
+
+        /* Stats bottom card */
         .stats-card {
             background:var(--card); border:1px solid var(--border);
             border-radius:0 0 var(--radius) var(--radius);
@@ -342,10 +355,19 @@
 
     <div class="toast" id="toast"></div>
 
+    <!-- Reconnect status bar -->
+    <div id="reconnect-bar">
+        <span id="reconnect-msg">🔄 重新連線中...</span>
+        <button class="btn sm dng" onclick="cancelReconnect()">取消</button>
+    </div>
+
     <!-- ===== LOBBY SCREEN ===== -->
     <div id="screen-lobby" class="wrap">
         <div class="app-header">
-            <div class="h-title">⚔️ Artale_RJPQ_v1.6</div>
+            <div>
+                <div class="h-title">⚔️ Artale_RJPQ_v1.6</div>
+                <div class="h-stats stats-display">🏠 - 房間・👥 - 人線上</div>
+            </div>
             <div class="h-badge">oo_jump製作</div>
         </div>
 
@@ -419,7 +441,10 @@
     <!-- ===== INVITE SCREEN ===== -->
     <div id="screen-invite" class="wrap" style="display:none">
         <div class="app-header">
-            <div class="h-title">⚔️ Artale_RJPQ_v1.6</div>
+            <div>
+                <div class="h-title">⚔️ Artale_RJPQ_web</div>
+                <div class="h-stats stats-display">🏠 - 房間・👥 - 人線上</div>
+            </div>
             <div class="h-badge">oo_jump製作</div>
         </div>
         <div class="card" style="border-radius:0 0 var(--radius) var(--radius)">
@@ -457,8 +482,11 @@
     <!-- ===== ROOM SCREEN ===== -->
     <div id="screen-room" class="wrap" style="display:none">
         <div class="app-header">
-            <div class="h-title">⚔️ Artale_RJPQ_oojump</div>
-            <div class="h-badge">Romeo &amp; Juliet PQ</div>
+            <div>
+                <div class="h-title">⚔️ Artale_RJPQ_web</div>
+                <div class="h-stats stats-display">🏠 - 房間・👥 - 人線上</div>
+            </div>
+            <div class="h-badge">oo_jump製作</div>
         </div>
 
         <!-- Room Info -->
@@ -479,7 +507,6 @@
                 <button class="btn sm" id="btn-editpw" style="display:none" onclick="editPw()">編輯密碼</button>
                 <button class="btn sm gld" onclick="copyInvite()">🔗邀請連結</button>
                 <button class="btn sm dng" onclick="leaveRoom()">離開</button>
-                <button class="btn sm" id="btn-rebuild" style="display:none" onclick="rebuildRoom()">重建</button>
                 <button class="btn sm" onclick="openEditNick()">編輯暱稱/顏色</button>
             </div>
         </div>
@@ -542,7 +569,7 @@
                 🖱️ <b>左鍵</b>：標記正確（每層限 1 格）<br>
                 🖱️ <b>右鍵</b>：標記死路（每層限 3 格）<br>
                 📱 <b>手機</b>：單點=正確 / 雙擊=死路<br>
-                💀 <b>灰色虛線</b>：缺席成員（系統替補，納入推算）<br>
+                💀 <b>替補</b>：缺席成員（納入推算）<br>
                 🟣 <b>紫框</b>：可能的玩家 / 🟡 <b>金框</b>：唯一確定
             </div>
             <div class="credit">資料與介面參考至原作者 <a href="https://github.com/andynavy23" target="_blank">andynavy23</a></div>
@@ -555,11 +582,18 @@
 
         // ===== STATE =====
         let ws = null, pingInt = null;
+        let wsStats = null;             // Separate WebSocket for real-time stats
         let myNick = '', myColor = BASE_COLORS[0], myTxtColor = '#ffffff';
         let isHost = false, currentRoomId = '', currentPw = '';
         let options = { auto: true, members: true, chat: false, seq: '1234' };
         let mapData = initMapData();
-        let allPlayers = []; // Full player list from server (real + bots)
+        let allPlayers = [];            // Full player list from server (real + disconnected + bots)
+        let lastMsgSeq = 0;             // Sequence guard: ignore stale out-of-order messages
+        // Reconnect state (exponential backoff)
+        let reconnectData = null;
+        let reconnectAttempt = 0;
+        let reconnectTimer = null;
+        const RECONNECT_DELAYS = [2000, 4000, 8000, 16000, 32000];
 
         // ===== INIT =====
         function initMapData() {
@@ -618,7 +652,9 @@
             document.getElementById('screen-invite').style.display = 'none';
             document.getElementById('screen-room').style.display = 'none';
             document.getElementById('idle').classList.remove('show');
+            hideReconnectBar();
             mapData = initMapData(); allPlayers = []; isHost = false; currentRoomId = ''; currentPw = '';
+            lastMsgSeq = 0;
         }
         function showRoom() {
             document.getElementById('screen-lobby').style.display = 'none';
@@ -677,8 +713,14 @@
             };
             ws.onclose = e => {
                 clearInterval(pingInt); pingInt = null;
-                if (e.code !== 1000 && e.code !== 1001 && document.getElementById('screen-room').style.display !== 'none') {
-                    showIdleOverlay('⚠️ 連線中斷', '連線已意外中斷。請重新加入房間。');
+                const inRoom = document.getElementById('screen-room').style.display !== 'none';
+                if (e.code !== 1000 && e.code !== 1001 && inRoom && currentRoomId) {
+                    // Accidental disconnect → attempt backoff reconnect
+                    if (!reconnectData) {
+                        reconnectData = { roomId: currentRoomId, nick: myNick, color: myColor,
+                                          textColor: myTxtColor, password: currentPw };
+                    }
+                    scheduleReconnect();
                 }
             };
             ws.onerror = () => {};
@@ -689,6 +731,57 @@
         }
         function sendWS(msg) {
             if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+        }
+
+        // ===== RECONNECT (exponential backoff) =====
+        function scheduleReconnect() {
+            if (!reconnectData) return;
+            if (reconnectAttempt >= RECONNECT_DELAYS.length) {
+                hideReconnectBar();
+                showIdleOverlay('⚠️ 重連失敗', '多次重連失敗，請手動重新加入房間。');
+                reconnectData = null; reconnectAttempt = 0;
+                return;
+            }
+            const delay = RECONNECT_DELAYS[reconnectAttempt++];
+            showReconnectBar(`🔄 ${delay / 1000}s 後重連... (${reconnectAttempt}/${RECONNECT_DELAYS.length})`);
+            reconnectTimer = setTimeout(() => {
+                if (!reconnectData) return;
+                connectWS(reconnectData.roomId, {
+                    type: 'JOIN', nick: reconnectData.nick, color: reconnectData.color,
+                    textColor: reconnectData.textColor, password: reconnectData.password
+                });
+            }, delay);
+        }
+        function cancelReconnect() {
+            clearTimeout(reconnectTimer); reconnectTimer = null;
+            reconnectData = null; reconnectAttempt = 0;
+            hideReconnectBar();
+        }
+        function showReconnectBar(msg) {
+            document.getElementById('reconnect-msg').textContent = msg;
+            document.getElementById('reconnect-bar').classList.add('show');
+        }
+        function hideReconnectBar() {
+            document.getElementById('reconnect-bar').classList.remove('show');
+        }
+
+        // ===== STATS WEBSOCKET =====
+        function connectStatsWS() {
+            if (wsStats && wsStats.readyState < 2) return;
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            wsStats = new WebSocket(`${protocol}//${location.host}/stats-ws`);
+            wsStats.onmessage = e => {
+                try {
+                    const d = JSON.parse(e.data);
+                    if (d.type === 'STATS_UPDATE') updateStatsDisplay(d.rooms, d.users);
+                } catch (err) {}
+            };
+            wsStats.onclose = () => { setTimeout(connectStatsWS, 12000); };
+            wsStats.onerror = () => {};
+        }
+        function updateStatsDisplay(rooms, users) {
+            const txt = `🏠 ${rooms} 房間・👥 ${users} 人線上`;
+            document.querySelectorAll('.stats-display').forEach(el => { el.textContent = txt; });
         }
 
         // ===== IDLE OVERLAY =====
@@ -704,8 +797,21 @@
 
         // ===== MESSAGE HANDLER =====
         function handleMsg(data) {
+            // Sequence guard: drop messages arriving out of order (stale retransmissions)
+            if (data.seq !== undefined) {
+                if (data.seq <= lastMsgSeq) return;
+                lastMsgSeq = data.seq;
+            }
+
             switch (data.type) {
                 case 'WELCOME': {
+                    // Reset seq counter on every new session (including reconnect)
+                    lastMsgSeq = 0;
+                    // Clear reconnect state on successful connection
+                    reconnectData = null; reconnectAttempt = 0;
+                    clearTimeout(reconnectTimer); reconnectTimer = null;
+                    hideReconnectBar();
+
                     isHost = data.isHost;
                     if (data.myNick) myNick = data.myNick;
                     myColor = data.myColor || myColor;
@@ -718,15 +824,17 @@
                     document.getElementById('rid-disp').textContent = currentRoomId;
                     updatePwDisplay(currentPw);
                     document.getElementById('btn-editpw').style.display = isHost ? 'inline-flex' : 'none';
-                    document.getElementById('btn-rebuild').style.display = isHost ? 'inline-flex' : 'none';
                     document.getElementById('btn-reset').style.display = isHost ? 'inline-flex' : 'none';
                     document.getElementById('members-sec').style.display = options.members ? 'block' : 'none';
                     document.getElementById('chat-sec').style.display = options.chat ? 'block' : 'none';
                     document.getElementById('chat-msgs').innerHTML = '';
 
                     renderPList();
-                    for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
-                    updatePathRecord();
+                    // Batch all 40 door updates via rAF to avoid layout thrashing
+                    requestAnimationFrame(() => {
+                        for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
+                        updatePathRecord();
+                    });
                     showRoom();
                     setLoad(false);
                     window.location.hash = currentRoomId;
@@ -737,23 +845,35 @@
                     applySync(data);
                     break;
                 case 'MAYBE_STATE':
-                    for (let d = 0; d < 4; d++) {
-                        if (data.state[d]) {
-                            mapData[data.f][d].maybe = data.state[d].maybe || [];
-                            mapData[data.f][d].certain = !!data.state[d].certain;
+                    // Batch DOM updates to avoid per-cell reflows
+                    requestAnimationFrame(() => {
+                        for (let d = 0; d < 4; d++) {
+                            if (data.state[d]) {
+                                mapData[data.f][d].maybe = data.state[d].maybe || [];
+                                mapData[data.f][d].certain = !!data.state[d].certain;
+                            }
+                            updateDoor(data.f, d);
                         }
-                        updateDoor(data.f, d);
-                    }
+                    });
                     break;
                 case 'NICK_LIST':
+                    if (data.players) allPlayers = data.players;
+                    renderPList();
+                    break;
                 case 'PLAYER_JOINED':
                     if (data.players) allPlayers = data.players;
                     renderPList();
+                    log(`🔗 ${data.nick} 重新連線！`, 'ok');
                     break;
                 case 'PLAYER_LEFT':
                     if (data.players) allPlayers = data.players;
                     renderPList();
                     log(`👤 ${data.nick} 離開了房間`, 'warn');
+                    break;
+                case 'PLAYER_DISCONNECTED':
+                    if (data.players) allPlayers = data.players;
+                    renderPList();
+                    log(`📡 ${data.nick} 連線中斷（標記已保留，等待重連）`, 'warn');
                     break;
                 case 'CHAT':
                     appendChat(data.nick, data.color, data.msg);
@@ -761,7 +881,6 @@
                 case 'HOST_TRANSFER':
                     isHost = true;
                     document.getElementById('btn-editpw').style.display = 'inline-flex';
-                    document.getElementById('btn-rebuild').style.display = 'inline-flex';
                     document.getElementById('btn-reset').style.display = 'inline-flex';
                     toast('👑 您已成為新房主');
                     log('您已成為新房主', 'ok');
@@ -778,27 +897,26 @@
                         log(`📋 清空前活路紀錄 [${myNick}]：${snapPath}`, 'ok');
                     }
                     mapData = initMapData();
-                    for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
-                    updatePathRecord();
+                    requestAnimationFrame(() => {
+                        for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
+                        updatePathRecord();
+                    });
                     log('所有標記已清空', 'warn');
                     break;
                 }
                 case 'KICK':
+                    cancelReconnect();
                     disconnect(true);
                     alert('您已被房主踢出房間。');
                     history.replaceState(null, document.title, location.pathname);
                     showLobby();
                     break;
                 case 'ROOM_CLOSED':
+                    cancelReconnect();
                     disconnect(true);
                     alert(data.reason || '房間已關閉。');
                     history.replaceState(null, document.title, location.pathname);
                     showLobby();
-                    break;
-                case 'IDLE_TIMEOUT':
-                    disconnect(true);
-                    history.replaceState(null, document.title, location.pathname);
-                    showIdleOverlay('⏱️ 閒置過久', '閒置超過1小時，連線已失效。請重新建立或加入房間。');
                     break;
                 case 'NEED_PW':
                     setLoad(false);
@@ -812,6 +930,7 @@
                     break;
                 case 'REJECT':
                     setLoad(false);
+                    cancelReconnect();
                     disconnect(true);
                     alert(data.reason || '加入失敗。');
                     break;
@@ -884,19 +1003,11 @@
 
         // ===== ROOM ACTIONS =====
         function leaveRoom() {
+            cancelReconnect();
             disconnect(true);
             history.replaceState(null, document.title, location.pathname);
             showLobby();
             log('已離開房間', 'warn');
-        }
-
-        function rebuildRoom() {
-            if (!confirm('重建房間將中斷所有成員連線，確定嗎？')) return;
-            sendWS({ type: 'REBUILD' });
-            mapData = initMapData();
-            for (let f = 0; f < 10; f++) for (let d = 0; d < 4; d++) updateDoor(f, d);
-            toast('🔨 房間已重建');
-            log('房間已重建', 'warn');
         }
 
         function editPw() {
@@ -965,10 +1076,18 @@
             plist.innerHTML = '';
             allPlayers.forEach(p => {
                 const s = document.createElement('span');
-                s.className = 'mtag' + (p.isBot ? ' isbot' : '');
-                s.style.color = p.color; s.style.borderColor = p.color + '66'; s.style.background = p.color + '22';
-                s.textContent = (p.isHost ? '👑 ' : p.isBot ? '' : '🙎🏽‍♂️ ') + p.nick;
-                if (isHost && !p.isHost && !p.isBot) {
+                const cls = ['mtag'];
+                if (p.isBot) cls.push('isbot');
+                if (p.isDisconnected) cls.push('disconnected');
+                s.className = cls.join(' ');
+                const col = p.isDisconnected ? '#888899' : p.color;
+                s.style.color = col;
+                s.style.borderColor = col + '66';
+                s.style.background = col + '22';
+                const icon = p.isHost ? '👑 ' : p.isBot ? '' : p.isDisconnected ? '🔴 ' : '🙎🏽‍♂️ ';
+                s.textContent = icon + p.nick + (p.isDisconnected ? '（斷線）' : '');
+                // Only allow kicking active (non-disconnected) non-bot non-host players
+                if (isHost && !p.isHost && !p.isBot && !p.isDisconnected) {
                     const kb = document.createElement('button');
                     kb.className = 'kick-btn'; kb.textContent = '✕'; kb.title = '踢出';
                     kb.onclick = () => { if (confirm(`確定踢出 ${p.nick}？`)) sendWS({ type: 'KICK', nick: p.nick }); };
@@ -1084,24 +1203,26 @@
             }
 
             if (c.v === 1) {
+                // Passed: show owner color + O mark
                 el.classList.add('state-pass');
                 el.style.background = `linear-gradient(135deg,${c.ownerColor || '#22c55e'},${darken(c.ownerColor || '#22c55e')})`;
                 icon.textContent = 'O'; owner.textContent = c.owner;
                 owner.style.color = c.ownerTextColor || '#ffffff';
-            } else {
-                if (c.certain) {
-                    el.classList.add('state-certain');
-                    icon.textContent = '★'; icon.style.color = '';
-                    owner.textContent = '僅剩此格' + (c.maybe.length > 0 ? '：' + c.maybe.join('/') : '');
-                } else if (c.errors.includes(myNick)) {
-                    el.classList.add('state-error');
-                    icon.textContent = '✗'; icon.style.color = '#f87171';
-                    if (c.maybe && c.maybe.length > 0) owner.textContent = '(' + c.maybe.join('/') + ')';
-                } else if (c.maybe && c.maybe.length > 0) {
-                    el.classList.add('state-maybe');
-                    icon.textContent = '?'; icon.style.color = '';
-                    owner.textContent = '(' + c.maybe.join('/') + ')';
-                }
+            } else if (c.errors.includes(myNick)) {
+                // Self-marked dead-end: ✗ always wins over certain/maybe — never overridden
+                el.classList.add('state-error');
+                icon.textContent = '✗'; icon.style.color = '#f87171';
+                if (c.maybe && c.maybe.length > 0) owner.textContent = '(' + c.maybe.join('/') + ')';
+            } else if (c.certain) {
+                // Uniquely determined cell
+                el.classList.add('state-certain');
+                icon.textContent = '★'; icon.style.color = '';
+                owner.textContent = '僅剩此格' + (c.maybe.length > 0 ? '：' + c.maybe.join('/') : '');
+            } else if (c.maybe && c.maybe.length > 0) {
+                // Possible candidates
+                el.classList.add('state-maybe');
+                icon.textContent = '?'; icon.style.color = '';
+                owner.textContent = '(' + c.maybe.join('/') + ')';
             }
         }
 
@@ -1131,6 +1252,9 @@
         // ===== BOOT =====
         renderGrid();
         log('歡迎使用 Artale_RJPQ_oojump！', 'ok');
+
+        // Connect real-time stats WebSocket (one persistent connection for the whole session)
+        connectStatsWS();
 
         // Handle invite link (URL hash = room ID) → show dedicated invite screen
         const hashId = location.hash.substring(1);

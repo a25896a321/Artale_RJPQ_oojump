@@ -1,6 +1,5 @@
 const BOT_NAMES = ['💀A', '💀B', '💀C'];
 const BASE_COLORS = ['#7B241C', '#A04000', '#1D8348', '#1B4F72'];
-const IDLE_MS = 60 * 60 * 1000; // 1 hour
 
 function initMapData() {
   return Array(10).fill(null).map(() =>
@@ -11,7 +10,6 @@ function initMapData() {
   );
 }
 
-// ===== Stats Helpers =====
 function getStats(env) {
   return env.STATS.get(env.STATS.idFromName('global'));
 }
@@ -32,13 +30,16 @@ export default {
       return stub.fetch(request);
     }
 
-    // Stats API — 1 extra HTTP request per page load, no polling needed
-    if (path === '/api/stats') {
-      const stats = getStats(env);
-      return stats.fetch(new Request('http://stats/get'));
+    // Real-time stats via WebSocket (each connection = 1 request; updates are free)
+    if (path === '/stats-ws') {
+      return getStats(env).fetch(request);
     }
 
-    // Serve static assets (index.html etc.)
+    // Legacy HTTP stats (kept for backward compat)
+    if (path === '/api/stats') {
+      return getStats(env).fetch(new Request('http://stats/get'));
+    }
+
     return env.ASSETS.fetch(request);
   }
 };
@@ -52,40 +53,49 @@ export class Room {
     this.options = { auto: true, members: true, chat: false, seq: '1234' };
     this.mapData = null;
     this.roomCreated = false;
+    // { nick: { color, textColor, wasHost } } — players who disconnected accidentally
+    this.disconnectedPlayers = {};
+    // Monotonically increasing per-session message sequence counter
+    this.msgSeq = 0;
 
-    // Load persisted state before handling any requests
+    // Restore persisted state from SQLite before handling any requests
     this.state.blockConcurrencyWhile(async () => {
-      const [config, map] = await Promise.all([
+      const [config, map, disconnected] = await Promise.all([
         this.state.storage.get('config'),
-        this.state.storage.get('mapData')
+        this.state.storage.get('mapData'),
+        this.state.storage.get('disconnectedPlayers')
       ]);
       if (config) {
         this.password = config.password || '';
         this.options = config.options || this.options;
-        this.roomCreated = true;
+        this.roomCreated = config.roomCreated !== undefined ? config.roomCreated : true;
       }
       this.mapData = map || initMapData();
+      this.disconnectedPlayers = disconnected || {};
     });
   }
+
+  // ── Session helpers ──────────────────────────────────────────────────────────
 
   getActiveSessions() {
-    return this.state.getWebSockets().filter(ws => {
-      const d = ws.deserializeAttachment();
-      return d?.joined === true;
-    });
+    return this.state.getWebSockets().filter(ws => ws.deserializeAttachment()?.joined === true);
   }
 
+  /** Returns all "game participants": active + disconnected + bot fillers (always 4 total). */
   getPlayers() {
-    const sessions = this.getActiveSessions();
-    const real = sessions
-      .map(ws => ws.deserializeAttachment())
-      .map(d => ({
-        nick: d.nick, color: d.color, textColor: d.textColor || '#ffffff',
-        isHost: !!d.isHost, isBot: false
-      }));
+    const active = this.getActiveSessions().map(ws => {
+      const d = ws.deserializeAttachment();
+      return { nick: d.nick, color: d.color, textColor: d.textColor || '#ffffff',
+               isHost: !!d.isHost, isBot: false, isDisconnected: false };
+    });
+    const disconnected = Object.entries(this.disconnectedPlayers).map(([nick, info]) => ({
+      nick, color: info.color, textColor: info.textColor || '#ffffff',
+      isHost: false, isBot: false, isDisconnected: true
+    }));
+    const real = [...active, ...disconnected];
     const botCount = Math.max(0, 4 - real.length);
     const bots = BOT_NAMES.slice(0, botCount).map(name => ({
-      nick: name, color: '#4a4a5a', textColor: '#888899', isHost: false, isBot: true
+      nick: name, color: '#4a4a5a', textColor: '#888899', isHost: false, isBot: true, isDisconnected: false
     }));
     return [...real, ...bots];
   }
@@ -104,6 +114,11 @@ export class Room {
       try { ws.send(str); } catch (e) {}
     }
   }
+
+  /** Atomically increment and return the next sequence number. */
+  nextSeq() { return ++this.msgSeq; }
+
+  // ── Game logic ───────────────────────────────────────────────────────────────
 
   recalcMaybe(f) {
     if (!this.options.auto) return;
@@ -131,6 +146,7 @@ export class Room {
       for (const d of unpassedIdx) possible[p][d] = !this.mapData[f][d].errors.includes(p);
     }
 
+    // Tier 2 + 3: iterative Pigeonhole + cascade elimination
     let changed = true;
     while (changed) {
       changed = false;
@@ -207,13 +223,32 @@ export class Room {
     return { type: 'MAYBE_STATE', f, state: this.mapData[f].map(c => ({ maybe: c.maybe, certain: c.certain })) };
   }
 
+  // ── Persistence ──────────────────────────────────────────────────────────────
+
   async saveConfig() {
-    await this.state.storage.put('config', { password: this.password, options: this.options });
+    await this.state.storage.put('config', {
+      password: this.password, options: this.options, roomCreated: this.roomCreated
+    });
   }
 
   async saveMapData() {
     await this.state.storage.put('mapData', this.mapData);
   }
+
+  async saveDisconnected() {
+    await this.state.storage.put('disconnectedPlayers', this.disconnectedPlayers);
+  }
+
+  /** Delete all SQLite data for this room and update global stats. */
+  async destroyRoom() {
+    this.roomCreated = false;
+    this.disconnectedPlayers = {};
+    this.mapData = initMapData();
+    await this.state.storage.deleteAll();
+    try { await getStats(this.env).fetch(new Request('http://stats/dec-room')); } catch (e) {}
+  }
+
+  // ── WebSocket lifecycle ───────────────────────────────────────────────────────
 
   async fetch(request) {
     if (request.headers.get('Upgrade') !== 'websocket') {
@@ -221,6 +256,7 @@ export class Room {
     }
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
+    // Use Hibernation API — DO hibernates between messages; no setTimeout needed
     this.state.acceptWebSocket(server);
     server.serializeAttachment({ joined: false });
     return new Response(null, { status: 101, webSocket: client });
@@ -231,10 +267,8 @@ export class Room {
     try { data = JSON.parse(message); } catch (e) { return; }
     const session = ws.deserializeAttachment() || {};
 
-    // Reset idle alarm
-    await this.state.storage.setAlarm(Date.now() + IDLE_MS);
-
     switch (data.type) {
+
       case 'CREATE': {
         const active = this.getActiveSessions();
         if (this.roomCreated && active.length > 0) {
@@ -249,7 +283,6 @@ export class Room {
           chat: data.options?.chat !== false,
           seq: data.options?.seq || '1234'
         };
-        // Auto-assign nick if empty
         const createNick = (data.nick && data.nick.trim()) ? data.nick.trim() : '未命名1';
         const sess = {
           joined: true, nick: createNick, color: BASE_COLORS[0],
@@ -258,8 +291,6 @@ export class Room {
         ws.serializeAttachment(sess);
         await this.saveConfig();
         await this.saveMapData();
-        await this.state.storage.setAlarm(Date.now() + IDLE_MS);
-        // Update global stats
         try { await getStats(this.env).fetch(new Request('http://stats/inc-room')); } catch (e) {}
         try { await getStats(this.env).fetch(new Request('http://stats/inc-user')); } catch (e) {}
         ws.send(JSON.stringify({
@@ -285,10 +316,11 @@ export class Room {
       case 'SYNC': {
         if (!session.joined) return;
         this.applySync(data);
-        this.broadcast({ type: 'SYNC', ...data }, ws);
+        const syncSeq = this.nextSeq();
+        this.broadcast({ type: 'SYNC', seq: syncSeq, ...data }, ws);
         if (this.options.auto) {
-          const msg = this.getMaybeState(data.f);
-          this.broadcastAll(msg);
+          const maybeSeq = this.nextSeq();
+          this.broadcastAll({ ...this.getMaybeState(data.f), seq: maybeSeq });
         }
         await this.saveMapData();
         break;
@@ -336,23 +368,6 @@ export class Room {
         break;
       }
 
-      case 'REBUILD': {
-        if (!session.isHost) return;
-        this.mapData = initMapData();
-        await this.saveMapData();
-        this.broadcast({ type: 'ROOM_CLOSED', reason: '房主已重建房間，請重新加入。' }, ws);
-        for (const other of this.state.getWebSockets()) {
-          if (other === ws) continue;
-          try { other.close(1000, 'Rebuilt'); } catch (e) {}
-        }
-        this.roomCreated = false;
-        this.password = '';
-        await this.state.storage.delete('config');
-        // Host stays, treated as fresh room creator
-        ws.serializeAttachment({ ...session });
-        break;
-      }
-
       case 'PING': {
         try { ws.send(JSON.stringify({ type: 'PONG' })); } catch (e) {}
         break;
@@ -362,7 +377,46 @@ export class Room {
 
   async _doJoin(ws, session, data) {
     const active = this.getActiveSessions();
-    if (active.length >= 4) {
+    const requestedNick = (data.nick && data.nick.trim()) ? data.nick.trim() : '';
+
+    // ── Reconnect path: nick found in disconnectedPlayers ──────────────────────
+    if (requestedNick && this.disconnectedPlayers[requestedNick]) {
+      const info = this.disconnectedPlayers[requestedNick];
+      if (this.password && data.password !== this.password) {
+        ws.serializeAttachment({ ...session, pendingJoin: data });
+        ws.send(JSON.stringify({ type: 'NEED_PW' }));
+        return;
+      }
+      // Restore: remove from disconnected, mark as active again
+      delete this.disconnectedPlayers[requestedNick];
+      await this.saveDisconnected();
+      const sess = {
+        joined: true, nick: requestedNick,
+        color: info.color, textColor: data.textColor || info.textColor,
+        isHost: false
+      };
+      ws.serializeAttachment(sess);
+      if (this.options.auto) for (let f = 0; f < 10; f++) this.recalcMaybe(f);
+      const players = this.getPlayers();
+      try { await getStats(this.env).fetch(new Request('http://stats/inc-user')); } catch (e) {}
+      ws.send(JSON.stringify({
+        type: 'WELCOME', isHost: false, myNick: requestedNick, myColor: info.color,
+        myTextColor: sess.textColor, state: this.mapData, players,
+        options: this.options, hasPw: !!this.password, password: this.password
+      }));
+      this.broadcast({ type: 'PLAYER_JOINED', nick: requestedNick, players }, ws);
+      if (this.options.auto) {
+        for (let f = 0; f < 10; f++) {
+          this.broadcastAll({ ...this.getMaybeState(f), seq: this.nextSeq() });
+        }
+      }
+      return;
+    }
+
+    // ── New player path ────────────────────────────────────────────────────────
+    // Capacity: active + disconnected slots count toward the 4-player cap
+    const totalRealPlayers = active.length + Object.keys(this.disconnectedPlayers).length;
+    if (totalRealPlayers >= 4) {
       ws.send(JSON.stringify({ type: 'REJECT', reason: '房間已滿（最多4人）。' }));
       return;
     }
@@ -371,9 +425,13 @@ export class Room {
       ws.send(JSON.stringify({ type: 'NEED_PW' }));
       return;
     }
-    // Auto-assign nick if empty; avoid duplicates
-    const usedNicks = active.map(s => s.deserializeAttachment()?.nick || '');
-    let nick = (data.nick && data.nick.trim()) ? data.nick.trim() : '';
+
+    // Nick uniqueness across active + disconnected
+    const usedNicks = [
+      ...active.map(s => s.deserializeAttachment()?.nick || ''),
+      ...Object.keys(this.disconnectedPlayers)
+    ];
+    let nick = requestedNick;
     if (!nick) {
       for (let n = 1; n <= 4; n++) {
         const candidate = `未命名${n}`;
@@ -384,9 +442,11 @@ export class Room {
       ws.send(JSON.stringify({ type: 'REJECT', reason: `暱稱「${nick}」已有人使用。` }));
       return;
     }
+
     const usedColors = active.map(s => s.deserializeAttachment()?.color || '');
     const color = BASE_COLORS.find(c => !usedColors.includes(c)) || data.color || '#94a3b8';
-    const isFirstAndNoRoom = !this.roomCreated || active.length === 0;
+    const isFirstAndNoRoom =
+      !this.roomCreated || (active.length === 0 && Object.keys(this.disconnectedPlayers).length === 0);
     if (isFirstAndNoRoom) {
       this.roomCreated = true;
       await this.saveConfig();
@@ -395,7 +455,6 @@ export class Room {
     ws.serializeAttachment(sess);
     if (this.options.auto) for (let f = 0; f < 10; f++) this.recalcMaybe(f);
     const players = this.getPlayers();
-    // Update global stats
     try { await getStats(this.env).fetch(new Request('http://stats/inc-user')); } catch (e) {}
     ws.send(JSON.stringify({
       type: 'WELCOME', isHost: sess.isHost, myNick: nick, myColor: color, myTextColor: sess.textColor,
@@ -407,18 +466,34 @@ export class Room {
   async webSocketClose(ws, code, reason, wasClean) {
     const session = ws.deserializeAttachment();
     if (!session?.joined) return;
-    this.removePlayerMarkers(session.nick);
-    await this.saveMapData();
-    // Decrement user count for this player
-    try { await getStats(this.env).fetch(new Request('http://stats/dec-user')); } catch (e) {}
-    const players = this.getPlayers();
-    this.broadcast({ type: 'NICK_LIST', players });
-    this.broadcast({ type: 'PLAYER_LEFT', nick: session.nick });
-    if (this.options.auto) {
-      for (let f = 0; f < 10; f++) {
-        this.broadcast(this.getMaybeState(f));
-      }
+
+    // code 1000/1001 = intentional leave; anything else = accidental disconnect
+    const isIntentional = (code === 1000 || code === 1001);
+
+    if (isIntentional) {
+      // Clean leave: wipe this player's marks from the shared board
+      this.removePlayerMarkers(session.nick);
+      await this.saveMapData();
+    } else {
+      // Accidental disconnect: preserve marks in mapData; save player info for reconnect
+      this.disconnectedPlayers[session.nick] = {
+        color: session.color, textColor: session.textColor, wasHost: session.isHost
+      };
+      await this.saveDisconnected();
     }
+
+    try { await getStats(this.env).fetch(new Request('http://stats/dec-user')); } catch (e) {}
+
+    const players = this.getPlayers();
+    const msgType = isIntentional ? 'PLAYER_LEFT' : 'PLAYER_DISCONNECTED';
+    this.broadcast({ type: msgType, nick: session.nick, players });
+
+    // Recalc after intentional leave (marks removed → board changed)
+    if (isIntentional && this.options.auto) {
+      for (let f = 0; f < 10; f++) this.broadcast(this.getMaybeState(f));
+    }
+
+    // Host transfer
     if (session.isHost) {
       const remaining = this.getActiveSessions();
       if (remaining.length > 0) {
@@ -426,48 +501,31 @@ export class Room {
         const nd = newHostWs.deserializeAttachment();
         newHostWs.serializeAttachment({ ...nd, isHost: true });
         try { newHostWs.send(JSON.stringify({ type: 'HOST_TRANSFER' })); } catch (e) {}
-        const updatedPlayers = this.getPlayers();
-        this.broadcastAll({ type: 'NICK_LIST', players: updatedPlayers });
+        this.broadcastAll({ type: 'NICK_LIST', players: this.getPlayers() });
       }
     }
-    // If no active sessions remain, the room is now empty → decrement room count
+
+    // Room destruction logic
     const remaining = this.getActiveSessions();
     if (remaining.length === 0 && this.roomCreated) {
-      this.roomCreated = false;
-      try { await getStats(this.env).fetch(new Request('http://stats/dec-room')); } catch (e) {}
+      if (isIntentional) {
+        // Last player left cleanly → destroy room + clear SQLite
+        await this.destroyRoom();
+      }
+      // Accidental: keep SQLite data so players can reconnect later;
+      // DO will hibernate; data persists until someone reconnects or room ID is reused.
     }
   }
 
   async webSocketError(ws, error) {
+    // Treat WebSocket errors as accidental disconnects (non-1000)
     await this.webSocketClose(ws, 1011, 'Error', false);
-  }
-
-  async alarm() {
-    // Idle timeout — mark all as left before closing to prevent webSocketClose double-counting
-    const activeSessions = this.getActiveSessions();
-    const userCount = activeSessions.length;
-    for (const ws of this.state.getWebSockets()) {
-      const d = ws.deserializeAttachment();
-      if (d) ws.serializeAttachment({ ...d, joined: false });
-    }
-    this.broadcastAll({ type: 'IDLE_TIMEOUT' });
-    for (const ws of this.state.getWebSockets()) {
-      try { ws.close(1000, 'Idle timeout'); } catch (e) {}
-    }
-    await this.state.storage.deleteAll();
-    // Manually decrement stats (webSocketClose skipped due to joined:false)
-    if (userCount > 0) {
-      try { await getStats(this.env).fetch(new Request('http://stats/dec-room')); } catch (e) {}
-      for (let i = 0; i < userCount; i++) {
-        try { await getStats(this.env).fetch(new Request('http://stats/dec-user')); } catch (e) {}
-      }
-    }
   }
 }
 
 // ===== Stats Durable Object =====
-// Tracks global room count and user count.
-// Called via internal subrequests (not counted toward 100k/day external request limit).
+// Tracks global room + user counts.
+// Supports both HTTP subrequests (from Room DOs) and WebSocket push (for client display).
 export class Stats {
   constructor(state, env) {
     this.state = state;
@@ -478,7 +536,25 @@ export class Stats {
     });
   }
 
+  /** Push current stats to all connected WebSocket clients instantly. */
+  broadcastStats() {
+    const msg = JSON.stringify({ type: 'STATS_UPDATE', rooms: this.data.rooms, users: this.data.users });
+    for (const ws of this.state.getWebSockets()) {
+      try { ws.send(msg); } catch (e) {}
+    }
+  }
+
   async fetch(request) {
+    // WebSocket upgrade → real-time stats subscription (Hibernation API)
+    if (request.headers.get('Upgrade') === 'websocket') {
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+      this.state.acceptWebSocket(server);
+      // Send current snapshot immediately after handshake
+      server.send(JSON.stringify({ type: 'STATS_UPDATE', ...this.data }));
+      return new Response(null, { status: 101, webSocket: client });
+    }
+
     const url = new URL(request.url);
     switch (url.pathname) {
       case '/inc-room': this.data.rooms = Math.max(0, this.data.rooms + 1); break;
@@ -493,6 +569,12 @@ export class Stats {
         return new Response('Not found', { status: 404 });
     }
     await this.state.storage.put('data', this.data);
+    this.broadcastStats(); // Push update to all stats subscribers
     return new Response('ok');
   }
+
+  // Stats clients are read-only; no inbound messages expected
+  webSocketMessage(ws, message) {}
+  webSocketClose(ws, code, reason, wasClean) {}
+  webSocketError(ws, error) {}
 }

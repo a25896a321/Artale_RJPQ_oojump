@@ -24,6 +24,7 @@ beta版：https://auto-rjpq-oojump.a25896a321.workers.dev/
 | v1.6.0 | 2026-03-22 | **架構升級**：P2P → Cloudflare Workers Durable Objects WebSocket；新登入頁分流；Bot 替補缺席成員（💀A/B/C）納入推算；密碼明碼顯示+複製；🔗邀請/🚪離開移至房間設定列 |
 | v1.7.0 | 2026-03-22 | 建立房間進階選項折疊（密碼、格子順序、功能選項）；允許暱稱留空（自動補「未命名1~4」）；新增首頁伺服器即時狀態（活躍房間、在線人數）；Stats Durable Object 追蹤全域統計 |
 | v1.8.0 | 2026-03-22 | 房主不可取消他人活路標記（僅能透過清空全部）；系統日誌預設隱藏；新增活路紀錄欄位（L1→L10 門號，格式 ???-???-???-?，附10碼複製按鈕） |
+| v1.9.0 | 2026-03-20 | **SQLite+DO 深度協同**：斷線保留標記（非正常斷線不清除mapData）；重連自動恢復（backoff 2/4/8/16/32s）；移除閒置踢出與 alarm，全面 WebSocket Hibernation；Stats DO 升級 WebSocket 訂閱（即時推送）；三畫面置頂統計；state-error 優先級修正；Sequence ID 防重放；移除重建功能；最後一人正常離開時銷毀房間並 deleteAll SQLite |
 
 ---
 
