@@ -14,6 +14,10 @@ function getStats(env) {
   return env.STATS.get(env.STATS.idFromName('global'));
 }
 
+// ===== Admin purge secret =====
+// Change this value before deploying, then remove the route entirely after use (Step 4).
+const PURGE_SECRET = 'artale-purge-9517';
+
 // ===== Main Worker =====
 export default {
   async fetch(request, env) {
@@ -39,6 +43,50 @@ export default {
     if (path === '/api/stats') {
       return getStats(env).fetch(new Request('http://stats/get'));
     }
+
+    // ── Admin purge endpoint ──────────────────────────────────────────────────
+    // Usage: GET /admin/purge?key=artale-purge-9517
+    // Clears the Stats DO (rooms/users counters).
+    // Room DOs self-destruct via destroyRoom() when the last player leaves;
+    // orphaned instances (if any) cannot be enumerated from the Worker and will
+    // be garbage-collected by Cloudflare after months of inactivity.
+    // REMOVE THIS BLOCK after use and redeploy (Step 4).
+    if (path === '/admin/purge') {
+      if (url.searchParams.get('key') !== PURGE_SECRET) {
+        return new Response('403 Forbidden', { status: 403 });
+      }
+      // Purge Stats DO
+      let statsResult = 'unknown';
+      try {
+        const res = await getStats(env).fetch(new Request('http://stats/purge'));
+        statsResult = res.ok ? 'cleared' : `error ${res.status}`;
+      } catch (e) {
+        statsResult = `exception: ${e.message}`;
+      }
+      const html = `<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8">
+<title>Admin Purge</title>
+<style>body{font-family:monospace;background:#0f0f1a;color:#e2e8f0;padding:40px;max-width:600px;margin:0 auto}
+h2{color:#a855f7}table{border-collapse:collapse;width:100%;margin-top:16px}
+td,th{border:1px solid #333;padding:8px 12px;text-align:left}
+th{background:#1a1a2e;color:#94a3b8}.ok{color:#22c55e}.warn{color:#f59e0b}</style>
+</head><body>
+<h2>🧹 Durable Objects 清理結果</h2>
+<table>
+<tr><th>DO 類別</th><th>實例</th><th>結果</th></tr>
+<tr><td>Stats</td><td>global</td><td class="${statsResult === 'cleared' ? 'ok' : 'warn'}">${statsResult}</td></tr>
+<tr><td>Room</td><td>所有實例</td><td class="warn">⚠️ 無法從 Worker 列舉；已離線的房間均已自動 deleteAll()，孤兒實例由 Cloudflare 定期回收</td></tr>
+</table>
+<p style="margin-top:24px;color:#94a3b8;font-size:12px">
+完成後請移除 /admin/purge 路由並重新部署（Step 4）。
+</p>
+</body></html>`;
+      return new Response(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+      });
+    }
+    // ── End admin purge endpoint ──────────────────────────────────────────────
 
     return env.ASSETS.fetch(request);
   }
@@ -562,6 +610,12 @@ export class Stats {
         return new Response(JSON.stringify(this.data), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
+      case '/purge':
+        // Full reset: wipe SQLite storage and zero in-memory counters
+        this.data = { rooms: 0, users: 0 };
+        await this.state.storage.deleteAll();
+        this.broadcastStats();
+        return new Response('Stats DO cleared', { status: 200 });
       default:
         return new Response('Not found', { status: 404 });
     }
@@ -575,11 +629,3 @@ export class Stats {
   webSocketClose(ws, code, reason, wasClean) {}
   webSocketError(ws, error) {}
 }
-
-// ===== Migration stubs =====
-// Required only so that the v3 renamed_classes migration can resolve its target.
-// These classes carry no logic and have no bindings — they exist solely to satisfy
-// Cloudflare's requirement that a renamed-to class must be exported by the script.
-// Safe to keep permanently; they do nothing.
-export class RoomLegacy {}
-export class StatsLegacy {}
