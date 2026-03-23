@@ -506,14 +506,11 @@ export class Room {
     }
 
     // Room destruction logic
+    // Regardless of intentional/accidental, once the last active session is gone
+    // there is no room to reconnect to — destroy and clear SQLite immediately.
     const remaining = this.getActiveSessions();
     if (remaining.length === 0 && this.roomCreated) {
-      if (isIntentional) {
-        // Last player left cleanly → destroy room + clear SQLite
-        await this.destroyRoom();
-      }
-      // Accidental: keep SQLite data so players can reconnect later;
-      // DO will hibernate; data persists until someone reconnects or room ID is reused.
+      await this.destroyRoom();
     }
   }
 
