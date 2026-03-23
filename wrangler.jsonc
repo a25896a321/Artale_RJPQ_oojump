@@ -19,11 +19,6 @@
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Room"] },
-    { "tag": "v2", "new_sqlite_classes": ["Stats"] },
-    { "tag": "v3", "renamed_classes": [
-        { "from": "Room",  "to": "RoomLegacy"  },
-        { "from": "Stats", "to": "StatsLegacy" }
-    ]},
-    { "tag": "v4", "new_sqlite_classes": ["Room", "Stats"], "deleted_classes": ["RoomLegacy", "StatsLegacy"] }
+    { "tag": "v2", "new_sqlite_classes": ["Stats"] }
   ]
 }
